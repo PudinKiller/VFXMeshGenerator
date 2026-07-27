@@ -1,13 +1,15 @@
 using System;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace PudinKiller.VFXMeshGenerator.Editor
 {
     internal sealed class VFXMeshPreviewController : IDisposable
     {
         private readonly PreviewRenderUtility previewUtility;
-        private readonly Material previewMaterial;
+        private readonly Material frontMaterial;
+        private readonly Material backfaceMaterial;
         private Mesh mesh;
         private Vector2 orbit = new Vector2(32f, 20f);
         private Vector3 pan;
@@ -28,17 +30,24 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             previewUtility.lights[1].transform.rotation = Quaternion.Euler(340f, 218f, 177f);
 
             var shader = Shader.Find("Hidden/PudinKiller/VFXMeshPreview");
-            if (shader == null)
+            if (shader != null && shader.isSupported)
             {
-                shader = Shader.Find("Universal Render Pipeline/Unlit");
-            }
-
-            if (shader != null)
-            {
-                previewMaterial = new Material(shader)
+                frontMaterial = new Material(shader)
                 {
-                    hideFlags = HideFlags.HideAndDontSave
+                    hideFlags = HideFlags.HideAndDontSave,
+                    renderQueue = (int)RenderQueue.Geometry
                 };
+                frontMaterial.SetFloat("_Cull", (float)CullMode.Back);
+                frontMaterial.SetFloat("_BackfacePass", 0f);
+
+                backfaceMaterial = new Material(shader)
+                {
+                    hideFlags = HideFlags.HideAndDontSave,
+                    renderQueue = (int)RenderQueue.Geometry - 1
+                };
+                backfaceMaterial.SetFloat("_Cull", (float)CullMode.Front);
+                backfaceMaterial.SetFloat("_BackfacePass", 1f);
+                backfaceMaterial.SetColor("_BackfaceColor", new Color(1f, 0.08f, 0.05f, 1f));
             }
         }
 
@@ -66,10 +75,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             HandleInput(rect);
             EditorGUI.DrawRect(rect, background);
 
-            if (mesh == null || previewMaterial == null)
+            if (mesh == null || frontMaterial == null || backfaceMaterial == null)
             {
-                DrawCenteredLabel(rect, previewMaterial == null
-                    ? "Preview shader could not be loaded."
+                DrawCenteredLabel(rect, frontMaterial == null || backfaceMaterial == null
+                    ? "Preview shader could not be loaded or is unsupported."
                     : "Adjust the settings to build a preview mesh.");
                 return;
             }
@@ -85,9 +94,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             camera.nearClipPlane = Mathf.Max(0.001f, distance - framingRadius * 2.5f);
             camera.farClipPlane = distance + framingRadius * 4f + 10f;
 
-            previewMaterial.SetFloat("_Mode", (float)mode);
-            previewMaterial.SetColor("_BaseColor", new Color(0.58f, 0.76f, 1f, 1f));
-            previewMaterial.SetVector("_PreviewLightDir", new Vector4(0.35f, 0.8f, 0.45f, 0f));
+            frontMaterial.SetFloat("_Mode", (float)mode);
+            frontMaterial.SetColor("_BaseColor", new Color(0.58f, 0.76f, 1f, 1f));
+            frontMaterial.SetVector("_PreviewLightDir", new Vector4(0.35f, 0.8f, 0.45f, 0f));
 
             var wireframe = mode == VFXPreviewMode.Wireframe;
             Texture texture = null;
@@ -96,7 +105,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 previewUtility.BeginPreview(rect, GUIStyle.none);
                 previewBegan = true;
-                previewUtility.DrawMesh(mesh, Matrix4x4.identity, previewMaterial, 0);
+                previewUtility.DrawMesh(mesh, Matrix4x4.identity, backfaceMaterial, 0);
+                previewUtility.DrawMesh(mesh, Matrix4x4.identity, frontMaterial, 0);
                 GL.wireframe = wireframe;
                 previewUtility.Render(true);
                 texture = previewUtility.EndPreview();
@@ -153,7 +163,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             else if (current.type == EventType.MouseDrag && current.button == 0)
             {
                 orbit.x += current.delta.x * 0.5f;
-                orbit.y = Mathf.Clamp(orbit.y - current.delta.y * 0.5f, -89f, 89f);
+                orbit.y = Mathf.Clamp(orbit.y + current.delta.y * 0.5f, -89f, 89f);
                 current.Use();
             }
             else if (current.type == EventType.MouseDrag && (current.button == 1 || current.button == 2))
@@ -200,9 +210,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public void Dispose()
         {
             previewUtility.Cleanup();
-            if (previewMaterial != null)
+            if (frontMaterial != null)
             {
-                UnityEngine.Object.DestroyImmediate(previewMaterial);
+                UnityEngine.Object.DestroyImmediate(frontMaterial);
+            }
+
+            if (backfaceMaterial != null)
+            {
+                UnityEngine.Object.DestroyImmediate(backfaceMaterial);
             }
         }
     }

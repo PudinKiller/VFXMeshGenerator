@@ -92,7 +92,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     warnings.Add("The generated mesh contains one or more degenerate triangles.");
                 }
 
-                result.mesh = CreateMesh(recipe.meshName, result.draft, result.outputSettings, warnings);
+                result.mesh = CreateMesh(recipe, result.draft, result.outputSettings, warnings);
                 PopulateStatistics(result);
                 result.warning = JoinMessages(warnings);
                 return result;
@@ -113,7 +113,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         }
 
         private static Mesh CreateMesh(
-            string requestedName,
+            VFXMeshRecipe recipe,
             VFXMeshDraft draft,
             VFXMeshOutputSettings output,
             List<string> warnings)
@@ -121,7 +121,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var indexFormat = ResolveIndexFormat(output.indexFormat, draft.vertices.Count);
             var mesh = new Mesh
             {
-                name = string.IsNullOrWhiteSpace(requestedName) ? "VFXMesh" : requestedName.Trim(),
+                name = string.IsNullOrWhiteSpace(recipe.meshName) ? "VFXMesh" : recipe.meshName.Trim(),
                 indexFormat = indexFormat
             };
 
@@ -152,6 +152,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                 mesh.SetTriangles(draft.triangles, 0, false);
                 mesh.RecalculateNormals();
+                SmoothClosedRingSeamNormals(recipe, mesh, output);
 
                 if (output.generateTangents)
                 {
@@ -187,6 +188,91 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 UnityEngine.Object.DestroyImmediate(mesh);
                 throw;
             }
+        }
+
+        private static void SmoothClosedRingSeamNormals(
+            VFXMeshRecipe recipe,
+            Mesh mesh,
+            VFXMeshOutputSettings output)
+        {
+            if (output.flatShading ||
+                (recipe.shapeType != VFXMeshShapeType.Ring &&
+                 recipe.shapeType != VFXMeshShapeType.Arc) ||
+                recipe.shape == null ||
+                Mathf.Abs(Mathf.Abs(recipe.shape.arcDegrees) - 360f) > 0.001f)
+            {
+                return;
+            }
+
+            var normals = mesh.normals;
+            var vertices = mesh.vertices;
+            if (normals.Length != vertices.Length || normals.Length == 0)
+            {
+                return;
+            }
+
+            var sideVertexCount = output.doubleSided ? vertices.Length / 2 : vertices.Length;
+            SmoothClosedRingSide(recipe.shape, normals, 0, sideVertexCount);
+            if (output.doubleSided)
+            {
+                SmoothClosedRingSide(recipe.shape, normals, sideVertexCount, vertices.Length);
+            }
+
+            mesh.normals = normals;
+        }
+
+        private static void SmoothClosedRingSide(
+            VFXShapeSettings shape,
+            Vector3[] normals,
+            int vertexOffset,
+            int sideEnd)
+        {
+            var radialSegments = Mathf.Clamp(
+                shape.radialSegments,
+                3,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var radiusSegments = Mathf.Clamp(
+                shape.widthSegments,
+                1,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var stride = radialSegments + 1;
+            var innerRadius = shape.innerRadius;
+            var usesDiscTopology =
+                float.IsNaN(innerRadius) ||
+                float.IsInfinity(innerRadius) ||
+                Mathf.Abs(innerRadius) < 0.0001f;
+
+            var rowCount = usesDiscTopology ? radiusSegments : radiusSegments + 1;
+            var firstRow = usesDiscTopology ? vertexOffset + 1 : vertexOffset;
+            for (var row = 0; row < rowCount; row++)
+            {
+                var first = firstRow + row * stride;
+                var last = first + radialSegments;
+                SmoothNormalPair(normals, first, last, vertexOffset, sideEnd);
+            }
+        }
+
+        private static void SmoothNormalPair(
+            Vector3[] normals,
+            int first,
+            int second,
+            int sideStart,
+            int sideEnd)
+        {
+            if (first < sideStart || second >= sideEnd)
+            {
+                return;
+            }
+
+            var sum = normals[first] + normals[second];
+            if (sum.sqrMagnitude <= 1e-12f)
+            {
+                return;
+            }
+
+            var smoothed = sum.normalized;
+            normals[first] = smoothed;
+            normals[second] = smoothed;
         }
 
         private static IndexFormat ResolveIndexFormat(VFXIndexFormatMode mode, int vertexCount)

@@ -1,6 +1,6 @@
 {
   "name": "com.pudinkiller.vfx-mesh-generator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "VFX Mesh Generator",
   "description": "Editor-only procedural mesh generator for Unity 6 URP VFX workflows.",
   "unity": "6000.0",
@@ -10,9 +10,6 @@
   "author": {
     "name": "PudinKiller",
     "url": "https://github.com/PudinKiller"
-  },
-  "dependencies": {
-    "com.unity.render-pipelines.universal": "17.0.3"
   },
   "keywords": [
     "vfx",

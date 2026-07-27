@@ -120,13 +120,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private static void GenerateDisc(VFXShapeSettings shape, VFXMeshDraft draft)
         {
-            GenerateDisc(shape, draft, 360f);
+            GenerateDisc(shape, draft, 360f, false);
         }
 
         private static void GenerateDisc(
             VFXShapeSettings shape,
             VFXMeshDraft draft,
-            float requestedArcDegrees)
+            float requestedArcDegrees,
+            bool applyRadialElevation)
         {
             var radialSegments = Segments(shape.radialSegments, 3);
             var radiusSegments = Segments(shape.widthSegments, 1);
@@ -136,13 +137,21 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var arcRadians = Degrees(arcDegrees);
             var positiveWinding = arcRadians >= 0f;
 
-            var center = draft.AddVertex(Vector3.zero, new Vector2(0.5f, 0.5f));
+            var centerElevation = applyRadialElevation
+                ? EvaluateRadialElevation(shape, 0f)
+                : 0f;
+            var center = draft.AddVertex(
+                new Vector3(0f, centerElevation, 0f),
+                new Vector2(0.5f, 0.5f));
             var previousRing = -1;
 
             for (var ring = 1; ring <= radiusSegments; ring++)
             {
                 var radialT = ring / (float)radiusSegments;
                 var ringRadius = radius * radialT;
+                var elevation = applyRadialElevation
+                    ? EvaluateRadialElevation(shape, radialT)
+                    : 0f;
                 var ringStart = draft.vertices.Count;
 
                 for (var segment = 0; segment <= radialSegments; segment++)
@@ -152,7 +161,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     var cosine = Mathf.Cos(angle);
                     var sine = Mathf.Sin(angle);
                     draft.AddVertex(
-                        new Vector3(cosine * ringRadius, 0f, sine * ringRadius),
+                        new Vector3(cosine * ringRadius, elevation, sine * ringRadius),
                         new Vector2(0.5f + cosine * radialT * 0.5f, 0.5f + sine * radialT * 0.5f));
                 }
 
@@ -202,7 +211,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
             if (innerRadius < MinimumDimension)
             {
-                GenerateDisc(shape, draft, arcDegrees);
+                GenerateDisc(shape, draft, arcDegrees, true);
                 return;
             }
 
@@ -215,13 +224,17 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 var radialT = ring / (float)radiusSegments;
                 var ringRadius = Mathf.Lerp(innerRadius, outerRadius, radialT);
+                var elevation = EvaluateRadialElevation(shape, radialT);
 
                 for (var segment = 0; segment <= radialSegments; segment++)
                 {
                     var angularT = segment / (float)radialSegments;
                     var angle = angleOffset + arcRadians * angularT;
                     draft.AddVertex(
-                        new Vector3(Mathf.Cos(angle) * ringRadius, 0f, Mathf.Sin(angle) * ringRadius),
+                        new Vector3(
+                            Mathf.Cos(angle) * ringRadius,
+                            elevation,
+                            Mathf.Sin(angle) * ringRadius),
                         new Vector2(angularT, radialT));
                 }
             }
@@ -1190,6 +1203,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 ? shape.widthCurve.Evaluate(Mathf.Clamp01(normalizedPosition))
                 : 1f;
             return Mathf.Max(MinimumDimension, Mathf.Abs(Finite(value, 1f)));
+        }
+
+        private static float EvaluateRadialElevation(VFXShapeSettings shape, float normalizedRadius)
+        {
+            var value = shape.radialElevationCurve != null
+                ? shape.radialElevationCurve.Evaluate(Mathf.Clamp01(normalizedRadius))
+                : 0f;
+            return Finite(value, 0f);
         }
 
         private static float Positive(float value)

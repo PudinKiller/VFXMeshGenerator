@@ -260,6 +260,153 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             }
         }
 
+        [Test]
+        public void RingElevationCurveSamplesInnerAndOuterEdges()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Ring);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.25f;
+            recipe.shape.radius = 1f;
+            recipe.shape.widthSegments = 2;
+            recipe.shape.radialElevationCurve = new AnimationCurve(
+                new Keyframe(0f, -0.25f),
+                new Keyframe(0.5f, 0.9f),
+                new Keyframe(1f, 0.75f));
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var rowStride = recipe.shape.radialSegments + 1;
+                Assert.That(vertices[0].y, Is.EqualTo(-0.25f).Within(1e-5f));
+                Assert.That(vertices[rowStride].y, Is.EqualTo(0.9f).Within(1e-5f));
+                Assert.That(vertices[rowStride * recipe.shape.widthSegments].y,
+                    Is.EqualTo(0.75f).Within(1e-5f));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void CurvedFullRingHasMatchingNormalsAcrossAngularSeam()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Ring);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.2f;
+            recipe.shape.radius = 1f;
+            recipe.shape.widthSegments = 4;
+            recipe.shape.radialElevationCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.35f, 0.6f),
+                new Keyframe(1f, -0.15f));
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var normals = result.mesh.normals;
+                var rowStride = recipe.shape.radialSegments + 1;
+                for (var row = 0; row <= recipe.shape.widthSegments; row++)
+                {
+                    var first = row * rowStride;
+                    var last = first + recipe.shape.radialSegments;
+                    Assert.That(Vector3.Distance(normals[first], normals[last]), Is.LessThan(1e-6f));
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void ZeroInnerRadiusRingElevatesFromCenterToOuterEdge()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Ring);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0f;
+            recipe.shape.radius = 1f;
+            recipe.shape.radialElevationCurve = AnimationCurve.Linear(0f, 0.4f, 1f, -0.2f);
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                Assert.That(vertices[0].y, Is.EqualTo(0.4f).Within(1e-5f));
+                Assert.That(vertices[vertices.Length - 1].y, Is.EqualTo(-0.2f).Within(1e-5f));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void NullRingElevationCurvePreservesFlatLegacyShape()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Ring);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radialElevationCurve = null;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                foreach (var vertex in result.mesh.vertices)
+                {
+                    Assert.That(vertex.y, Is.EqualTo(0f).Within(1e-6f));
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void DeepCopyPreservesRingElevationCurve()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Ring);
+            recipe.shape.radialElevationCurve =
+                new AnimationCurve(new Keyframe(0f, 0.2f), new Keyframe(0.45f, 1.1f), new Keyframe(1f, -0.3f));
+
+            var copy = recipe.DeepCopy();
+
+            Assert.That(copy.shape.radialElevationCurve, Is.Not.Null);
+            Assert.That(copy.shape.radialElevationCurve.Evaluate(0f), Is.EqualTo(0.2f).Within(1e-5f));
+            Assert.That(copy.shape.radialElevationCurve.Evaluate(0.45f), Is.EqualTo(1.1f).Within(1e-5f));
+            Assert.That(copy.shape.radialElevationCurve.Evaluate(1f), Is.EqualTo(-0.3f).Within(1e-5f));
+        }
+
+        [Test]
+        public void PreviewShaderExposesOpaqueBackfaceControls()
+        {
+            var shader = Shader.Find("Hidden/PudinKiller/VFXMeshPreview");
+            Assert.That(shader, Is.Not.Null);
+            Assert.That(shader.isSupported, Is.True);
+
+            var material = new Material(shader);
+            try
+            {
+                Assert.That(material.HasProperty("_Cull"), Is.True);
+                Assert.That(material.HasProperty("_BackfacePass"), Is.True);
+                Assert.That(material.HasProperty("_BackfaceColor"), Is.True);
+                Assert.That(material.GetColor("_BackfaceColor").a, Is.EqualTo(1f).Within(1e-6f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
         private static VFXMeshRecipe CreateRecipe(VFXMeshShapeType shapeType)
         {
             var recipe = new VFXMeshRecipe

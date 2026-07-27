@@ -231,6 +231,17 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         EditorGUILayout.FloatField("Outer Radius", settings.radius));
                     settings.radialSegments = SegmentField("Edge Count", settings.radialSegments, 3);
                     settings.widthSegments = SegmentField("Radial Resolution", settings.widthSegments, 1);
+                    if (settings.radialElevationCurve == null)
+                    {
+                        settings.radialElevationCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f);
+                    }
+
+                    settings.radialElevationCurve = EditorGUILayout.CurveField(
+                        new GUIContent(
+                            "Axial Elevation Curve",
+                            "Curve time runs from the inner edge or center (0) to the outer edge (1). " +
+                            "Curve values are displacement along the selected Main Axis."),
+                        settings.radialElevationCurve);
                     settings.arcDegrees = Mathf.Clamp(
                         EditorGUILayout.FloatField("Arc Degrees", settings.arcDegrees),
                         0.1f,

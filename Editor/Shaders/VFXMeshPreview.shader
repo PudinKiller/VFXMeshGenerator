@@ -3,8 +3,11 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
     Properties
     {
         _BaseColor("Base Color", Color) = (0.58, 0.76, 1, 1)
+        _BackfaceColor("Backface Color", Color) = (1, 0.08, 0.05, 1)
         _Mode("Mode", Float) = 0
         _PreviewLightDir("Preview Light Direction", Vector) = (0.35, 0.8, 0.45, 0)
+        [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull", Float) = 2
+        [Toggle] _BackfacePass("Backface Pass", Float) = 0
     }
 
     SubShader
@@ -20,7 +23,7 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
         {
             Name "Preview"
             Tags { "LightMode" = "UniversalForward" }
-            Cull Back
+            Cull [_Cull]
             ZWrite On
             ZTest LEqual
 
@@ -49,8 +52,10 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
+                float4 _BackfaceColor;
                 float4 _PreviewLightDir;
                 float _Mode;
+                float _BackfacePass;
             CBUFFER_END
 
             Varyings Vert(Attributes input)
@@ -65,6 +70,11 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
 
             half4 Frag(Varyings input) : SV_Target
             {
+                if (_BackfacePass > 0.5)
+                {
+                    return _BackfaceColor;
+                }
+
                 float3 normal = normalize(input.normalWS);
 
                 if (_Mode > 4.5)
