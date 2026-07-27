@@ -1,0 +1,8 @@
+* text=auto
+.gitattributes text eol=lf
+*.asmdef text eol=lf
+*.cs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.meta text eol=lf whitespace=-blank-at-eol
+*.shader text eol=lf
