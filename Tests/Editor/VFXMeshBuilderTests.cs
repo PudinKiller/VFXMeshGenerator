@@ -262,6 +262,102 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             }
         }
 
+        [TestCase(3)]
+        [TestCase(8)]
+        public void DiscRadialProjectionDuplicatesCenterPerFanSector(int edgeCount)
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Disc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radius = 1.5f;
+            recipe.shape.radialSegments = edgeCount;
+            recipe.shape.widthSegments = 2;
+            recipe.shape.angleOffset = 13f;
+            recipe.uv.projection = VFXUVProjection.Radial;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var uv = result.mesh.uv;
+                var triangles = result.mesh.triangles;
+                var referencedCenterVertices = new HashSet<int>();
+                var fanTriangleCount = 0;
+
+                for (var triangle = 0; triangle < triangles.Length; triangle += 3)
+                {
+                    var minimumU = float.PositiveInfinity;
+                    var maximumU = float.NegativeInfinity;
+                    var centerCorner = -1;
+                    var centerCount = 0;
+                    for (var corner = 0; corner < 3; corner++)
+                    {
+                        var vertexIndex = triangles[triangle + corner];
+                        var radius = RadialDistance(vertices[vertexIndex]);
+                        Assert.That(
+                            uv[vertexIndex].y,
+                            Is.EqualTo(radius / recipe.shape.radius).Within(1e-5f),
+                            $"Vertex {vertexIndex} has the wrong radial V coordinate.");
+                        minimumU = Mathf.Min(minimumU, uv[vertexIndex].x);
+                        maximumU = Mathf.Max(maximumU, uv[vertexIndex].x);
+                        if (radius <= 1e-5f)
+                        {
+                            centerCorner = corner;
+                            centerCount++;
+                        }
+                    }
+
+                    Assert.That(
+                        maximumU - minimumU,
+                        Is.LessThanOrEqualTo(0.5001f),
+                        $"Triangle {triangle / 3} crosses the wrapped U seam.");
+                    if (centerCount == 0)
+                    {
+                        continue;
+                    }
+
+                    Assert.That(
+                        centerCount,
+                        Is.EqualTo(1),
+                        $"Fan triangle {triangle / 3} should reference exactly one center.");
+                    var centerIndex = triangles[triangle + centerCorner];
+                    Assert.That(
+                        referencedCenterVertices.Add(centerIndex),
+                        Is.True,
+                        $"Center vertex {centerIndex} was reused by more than one fan sector.");
+
+                    var firstNeighbor =
+                        triangles[triangle + (centerCorner + 1) % 3];
+                    var secondNeighbor =
+                        triangles[triangle + (centerCorner + 2) % 3];
+                    Assert.That(
+                        Mathf.Abs(uv[firstNeighbor].x - uv[secondNeighbor].x),
+                        Is.LessThanOrEqualTo(0.5001f),
+                        $"Fan sector {fanTriangleCount} did not use unwrapped neighbor UVs.");
+                    Assert.That(
+                        uv[centerIndex].x,
+                        Is.EqualTo((uv[firstNeighbor].x + uv[secondNeighbor].x) * 0.5f)
+                            .Within(1e-6f),
+                        $"Fan sector {fanTriangleCount} center U is not the neighbor midpoint.");
+                    Assert.That(
+                        uv[centerIndex].y,
+                        Is.EqualTo(0f).Within(1e-6f),
+                        $"Fan sector {fanTriangleCount} center V should represent zero radius.");
+                    fanTriangleCount++;
+                }
+
+                Assert.That(fanTriangleCount, Is.EqualTo(recipe.shape.radialSegments));
+                Assert.That(
+                    referencedCenterVertices,
+                    Has.Count.EqualTo(recipe.shape.radialSegments));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
         [Test]
         public void RingIgnoresArcDegreesAndCloses()
         {
@@ -461,6 +557,192 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                         Vector3.Distance(normals[first], normals[last]),
                         Is.LessThan(1e-6f),
                         $"Normalized seam normals differ at radial row {row}.");
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void MirroredArcReflectsTopologyWindingNormalsAndTransformedProjectedUVs()
+        {
+            var sourceRecipe = CreateRecipe(VFXMeshShapeType.Arc);
+            sourceRecipe.shape.pivot = VFXPivot.Custom;
+            sourceRecipe.shape.customPivotOffset = Vector3.zero;
+            sourceRecipe.shape.innerRadius = 0.3f;
+            sourceRecipe.shape.radius = 1.1f;
+            sourceRecipe.shape.radialSegments = 8;
+            sourceRecipe.shape.widthSegments = 3;
+            sourceRecipe.shape.arcDegrees = 145f;
+            sourceRecipe.shape.angleOffset = 19f;
+            sourceRecipe.shape.radialElevationCurve = AnimationCurve.Linear(
+                0f,
+                0.2f,
+                1f,
+                0.45f);
+            sourceRecipe.shape.arcWidthCurve = new AnimationCurve(
+                new Keyframe(0f, 0.35f),
+                new Keyframe(0.5f, 1f),
+                new Keyframe(1f, 0.55f));
+            sourceRecipe.uv.projection = VFXUVProjection.AlongLength;
+            sourceRecipe.uv.scale = new Vector2(-1.25f, 0.7f);
+            sourceRecipe.uv.offset = new Vector2(0.23f, -0.16f);
+            sourceRecipe.uv.rotation = 33f;
+            sourceRecipe.uv.flipU = true;
+            sourceRecipe.uv.flipV = true;
+            sourceRecipe.uv.swapUV = true;
+
+            var mirroredRecipe = sourceRecipe.DeepCopy();
+            mirroredRecipe.shape.mirrorArcAcrossShapePlane = true;
+            var sourceResult = VFXMeshBuilder.Build(sourceRecipe);
+            var mirroredResult = VFXMeshBuilder.Build(mirroredRecipe);
+
+            try
+            {
+                Assert.That(sourceResult.succeeded, Is.True, sourceResult.error);
+                Assert.That(mirroredResult.succeeded, Is.True, mirroredResult.error);
+                Assert.That(
+                    mirroredResult.vertexCount,
+                    Is.EqualTo(sourceResult.vertexCount * 2));
+                Assert.That(
+                    mirroredResult.triangleCount,
+                    Is.EqualTo(sourceResult.triangleCount * 2));
+
+                var sourceVertices = sourceResult.mesh.vertices;
+                var sourceNormals = sourceResult.mesh.normals;
+                var sourceUV = sourceResult.mesh.uv;
+                var sourceTriangles = sourceResult.mesh.triangles;
+                var mirroredVertices = mirroredResult.mesh.vertices;
+                var mirroredNormals = mirroredResult.mesh.normals;
+                var mirroredUV = mirroredResult.mesh.uv;
+                var mirroredTriangles = mirroredResult.mesh.triangles;
+                var shellVertexCount = sourceVertices.Length;
+
+                for (var vertex = 0; vertex < shellVertexCount; vertex++)
+                {
+                    Assert.That(
+                        Vector3.Distance(mirroredVertices[vertex], sourceVertices[vertex]),
+                        Is.LessThan(1e-6f),
+                        $"Source-shell vertex {vertex} changed when mirroring was enabled.");
+                    Assert.That(
+                        Vector3.Distance(
+                            mirroredVertices[shellVertexCount + vertex],
+                            ReflectAcrossXZ(sourceVertices[vertex])),
+                        Is.LessThan(1e-6f),
+                        $"Mirrored vertex {vertex} was not reflected across Y=0.");
+                    Assert.That(
+                        Vector2.Distance(mirroredUV[vertex], sourceUV[vertex]),
+                        Is.LessThan(1e-6f),
+                        $"Source-shell UV {vertex} changed when mirroring was enabled.");
+                    Assert.That(
+                        Vector2.Distance(
+                            mirroredUV[shellVertexCount + vertex],
+                            mirroredUV[vertex]),
+                        Is.LessThan(1e-6f),
+                        $"Mirrored UV {vertex} does not match its source after UV transforms.");
+                    Assert.That(
+                        Vector3.Distance(mirroredNormals[vertex], sourceNormals[vertex]),
+                        Is.LessThan(1e-6f),
+                        $"Source-shell normal {vertex} changed when mirroring was enabled.");
+                    Assert.That(
+                        Vector3.Distance(
+                            mirroredNormals[shellVertexCount + vertex],
+                            ReflectAcrossXZ(sourceNormals[vertex])),
+                        Is.LessThan(1e-5f),
+                        $"Mirrored normal {vertex} has the wrong reflected direction.");
+                }
+
+                Assert.That(
+                    mirroredTriangles,
+                    Has.Length.EqualTo(sourceTriangles.Length * 2));
+                for (var triangle = 0; triangle < sourceTriangles.Length; triangle += 3)
+                {
+                    Assert.That(mirroredTriangles[triangle], Is.EqualTo(sourceTriangles[triangle]));
+                    Assert.That(mirroredTriangles[triangle + 1], Is.EqualTo(sourceTriangles[triangle + 1]));
+                    Assert.That(mirroredTriangles[triangle + 2], Is.EqualTo(sourceTriangles[triangle + 2]));
+
+                    var mirroredTriangle = sourceTriangles.Length + triangle;
+                    Assert.That(
+                        mirroredTriangles[mirroredTriangle],
+                        Is.EqualTo(sourceTriangles[triangle] + shellVertexCount));
+                    Assert.That(
+                        mirroredTriangles[mirroredTriangle + 1],
+                        Is.EqualTo(sourceTriangles[triangle + 2] + shellVertexCount));
+                    Assert.That(
+                        mirroredTriangles[mirroredTriangle + 2],
+                        Is.EqualTo(sourceTriangles[triangle + 1] + shellVertexCount));
+                }
+
+                var sourceFaceNormal = TriangleNormal(
+                    mirroredVertices,
+                    mirroredTriangles,
+                    0);
+                var mirroredFaceNormal = TriangleNormal(
+                    mirroredVertices,
+                    mirroredTriangles,
+                    sourceTriangles.Length);
+                Assert.That(Vector3.Dot(sourceFaceNormal, Vector3.up), Is.GreaterThan(0.5f));
+                Assert.That(Vector3.Dot(mirroredFaceNormal, Vector3.down), Is.GreaterThan(0.5f));
+                Assert.That(
+                    Vector3.Distance(
+                        mirroredFaceNormal,
+                        ReflectAcrossXZ(sourceFaceNormal)),
+                    Is.LessThan(1e-5f));
+            }
+            finally
+            {
+                DestroyResult(sourceResult);
+                DestroyResult(mirroredResult);
+            }
+        }
+
+        [Test]
+        public void MirroredClosedArcDoubleSidedSmoothsEveryAngularSeam()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.25f;
+            recipe.shape.radius = 1.15f;
+            recipe.shape.radialSegments = 12;
+            recipe.shape.widthSegments = 3;
+            recipe.shape.arcDegrees = 360f;
+            recipe.shape.radialElevationCurve = new AnimationCurve(
+                new Keyframe(0f, 0.2f),
+                new Keyframe(0.45f, 0.55f),
+                new Keyframe(1f, 0.3f));
+            recipe.shape.arcWidthCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+            recipe.shape.mirrorArcAcrossShapePlane = true;
+            recipe.output.doubleSided = true;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var normals = result.mesh.normals;
+                var rowStride = recipe.shape.radialSegments + 1;
+                var shellVertexCount = (recipe.shape.widthSegments + 1) * rowStride;
+                Assert.That(vertices, Has.Length.EqualTo(shellVertexCount * 4));
+
+                for (var shell = 0; shell < 4; shell++)
+                {
+                    var shellOffset = shell * shellVertexCount;
+                    for (var row = 0; row <= recipe.shape.widthSegments; row++)
+                    {
+                        var first = shellOffset + row * rowStride;
+                        var last = first + recipe.shape.radialSegments;
+                        Assert.That(
+                            Vector3.Distance(vertices[first], vertices[last]),
+                            Is.LessThan(1e-5f),
+                            $"Shell {shell}, radial row {row} has an open position seam.");
+                        Assert.That(
+                            Vector3.Distance(normals[first], normals[last]),
+                            Is.LessThan(1e-6f),
+                            $"Shell {shell}, radial row {row} has a normal seam.");
+                    }
                 }
             }
             finally
@@ -710,6 +992,17 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
+        public void DeepCopyPreservesMirrorArcAcrossShapePlane()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.mirrorArcAcrossShapePlane = true;
+
+            var copy = recipe.DeepCopy();
+
+            Assert.That(copy.shape.mirrorArcAcrossShapePlane, Is.True);
+        }
+
+        [Test]
         public void PreviewModeNumericValuesRemainStable()
         {
             Assert.That((int)VFXPreviewMode.Shaded, Is.EqualTo(0));
@@ -828,6 +1121,22 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         private static float RadialDistance(Vector3 position)
         {
             return new Vector2(position.x, position.z).magnitude;
+        }
+
+        private static Vector3 ReflectAcrossXZ(Vector3 value)
+        {
+            return new Vector3(value.x, -value.y, value.z);
+        }
+
+        private static Vector3 TriangleNormal(
+            IReadOnlyList<Vector3> vertices,
+            IReadOnlyList<int> triangles,
+            int triangle)
+        {
+            var first = vertices[triangles[triangle]];
+            var second = vertices[triangles[triangle + 1]];
+            var third = vertices[triangles[triangle + 2]];
+            return Vector3.Cross(second - first, third - first).normalized;
         }
 
         private static bool IsFinite(Vector3 value)

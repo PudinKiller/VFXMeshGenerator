@@ -28,10 +28,26 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var settings = recipe.uv ?? new VFXUVSettings();
             if (settings.projection != VFXUVProjection.ShapeDefault)
             {
-                Project(recipe, draft, settings.projection);
+                var mirrorsArc =
+                    recipe.shapeType == VFXMeshShapeType.Arc &&
+                    recipe.shape?.mirrorArcAcrossShapePlane == true;
+                var projectionVertexCount = mirrorsArc
+                    ? vertexCount / 2
+                    : vertexCount;
+                Project(
+                    recipe,
+                    draft,
+                    settings.projection,
+                    projectionVertexCount);
+                if (mirrorsArc)
+                {
+                    CopyMirroredArcUVs(draft, projectionVertexCount);
+                }
+
                 if (IsAngularProjection(settings.projection))
                 {
                     SplitAngularSeams(draft);
+                    SplitAngularPoles(recipe, draft);
                 }
             }
 
@@ -86,18 +102,88 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private static int DuplicateVertexWithWrappedU(VFXMeshDraft draft, int sourceIndex)
         {
+            var uv = draft.uv0[sourceIndex];
+            uv.x += 1f;
+            return DuplicateVertexWithUV(draft, sourceIndex, uv);
+        }
+
+        private static int DuplicateVertexWithUV(
+            VFXMeshDraft draft,
+            int sourceIndex,
+            Vector2 uv)
+        {
             var previousVertexCount = draft.vertices.Count;
             var duplicateIndex = previousVertexCount;
             draft.vertices.Add(draft.vertices[sourceIndex]);
-            var uv = draft.uv0[sourceIndex];
-            uv.x += 1f;
             draft.uv0.Add(uv);
-
             DuplicateOptionalChannel(draft.uv1, previousVertexCount, sourceIndex);
             DuplicateOptionalChannel(draft.uv2, previousVertexCount, sourceIndex);
             DuplicateOptionalChannel(draft.uv3, previousVertexCount, sourceIndex);
             DuplicateOptionalChannel(draft.colors, previousVertexCount, sourceIndex);
             return duplicateIndex;
+        }
+
+        private static void SplitAngularPoles(VFXMeshRecipe recipe, VFXMeshDraft draft)
+        {
+            var axisType = recipe.shape == null ? VFXAxis.Y : recipe.shape.axis;
+            var axis = VFXProcessingUtility.AxisVector(axisType);
+            var bounds = draft.CalculateBounds();
+            var center = ResolveAngularCenter(
+                recipe,
+                draft,
+                bounds.center);
+            var maximumRadius =
+                VFXProcessingUtility.CalculateMaximumRadius(draft.vertices, center, axis);
+            var poleTolerance = Mathf.Max(
+                VFXProcessingUtility.Epsilon,
+                maximumRadius * 1e-5f);
+            var poleToleranceSquared = poleTolerance * poleTolerance;
+            var triangleIndexCount = draft.triangles.Count;
+
+            for (var triangle = 0; triangle + 2 < triangleIndexCount; triangle += 3)
+            {
+                var poleCornerMask = 0;
+                var nonPoleUSum = 0f;
+                var nonPoleCount = 0;
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var vertexIndex = draft.triangles[triangle + corner];
+                    var radial = VFXProcessingUtility.RadialVector(
+                        draft.vertices[vertexIndex],
+                        center,
+                        axis);
+                    var isPole = radial.sqrMagnitude <= poleToleranceSquared;
+                    if (isPole)
+                    {
+                        poleCornerMask |= 1 << corner;
+                        continue;
+                    }
+
+                    nonPoleUSum += draft.uv0[vertexIndex].x;
+                    nonPoleCount++;
+                }
+
+                if (nonPoleCount == 0 || nonPoleCount == 3)
+                {
+                    continue;
+                }
+
+                var poleU = nonPoleUSum / nonPoleCount;
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    if ((poleCornerMask & (1 << corner)) == 0)
+                    {
+                        continue;
+                    }
+
+                    var triangleIndex = triangle + corner;
+                    var sourceIndex = draft.triangles[triangleIndex];
+                    var poleUV = draft.uv0[sourceIndex];
+                    poleUV.x = poleU;
+                    draft.triangles[triangleIndex] =
+                        DuplicateVertexWithUV(draft, sourceIndex, poleUV);
+                }
+            }
         }
 
         private static void DuplicateOptionalChannel<T>(List<T> values, int vertexCount, int sourceIndex)
@@ -111,27 +197,30 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private static void Project(
             VFXMeshRecipe recipe,
             VFXMeshDraft draft,
-            VFXUVProjection projection)
+            VFXUVProjection projection,
+            int vertexCount)
         {
             var axisType = recipe.shape == null ? VFXAxis.Y : recipe.shape.axis;
             var axis = VFXProcessingUtility.AxisVector(axisType);
             VFXProcessingUtility.GetPlanarBasis(axisType, out var radialA, out var radialB);
-            var bounds = draft.CalculateBounds();
-            var center = bounds.center;
-            VFXProcessingUtility.GetProjectionRange(
+            var bounds = CalculateBounds(draft.vertices, vertexCount);
+            var center = ResolveAngularCenter(recipe, draft, bounds.center);
+            GetProjectionRange(
                 draft.vertices,
                 radialA,
+                vertexCount,
                 out var radialAMinimum,
                 out var radialAMaximum);
-            VFXProcessingUtility.GetProjectionRange(
+            GetProjectionRange(
                 draft.vertices,
                 radialB,
+                vertexCount,
                 out var radialBMinimum,
                 out var radialBMaximum);
 
             var minimumRadius = float.PositiveInfinity;
             var maximumRadius = 0f;
-            for (var i = 0; i < draft.vertices.Count; i++)
+            for (var i = 0; i < vertexCount; i++)
             {
                 var radius =
                     VFXProcessingUtility.RadialVector(draft.vertices[i], center, axis).magnitude;
@@ -147,7 +236,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var boxNormals = projection == VFXUVProjection.Box
                 ? CalculateVertexNormals(draft)
                 : null;
-            for (var i = 0; i < draft.vertices.Count; i++)
+            for (var i = 0; i < vertexCount; i++)
             {
                 var position = draft.vertices[i];
                 switch (projection)
@@ -185,7 +274,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     case VFXUVProjection.Spherical:
                     {
                         var direction = position - center;
-                        if (direction.sqrMagnitude <= VFXProcessingUtility.Epsilon)
+                        if (direction.sqrMagnitude <=
+                            VFXProcessingUtility.Epsilon *
+                            VFXProcessingUtility.Epsilon)
                         {
                             draft.uv0[i] = new Vector2(0.5f, 0.5f);
                             break;
@@ -237,6 +328,98 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
         }
 
+        private static void CopyMirroredArcUVs(
+            VFXMeshDraft draft,
+            int sourceVertexCount)
+        {
+            if (sourceVertexCount <= 0 ||
+                sourceVertexCount * 2 > draft.uv0.Count)
+            {
+                return;
+            }
+
+            for (var vertex = 0; vertex < sourceVertexCount; vertex++)
+            {
+                draft.uv0[sourceVertexCount + vertex] = draft.uv0[vertex];
+            }
+        }
+
+        private static Vector3 ResolveAngularCenter(
+            VFXMeshRecipe recipe,
+            VFXMeshDraft draft,
+            Vector3 fallbackCenter)
+        {
+            if (draft == null || draft.vertices.Count == 0)
+            {
+                return fallbackCenter;
+            }
+
+            var shape = recipe?.shape;
+            var usesCenterVertex = recipe?.shapeType == VFXMeshShapeType.Disc;
+            if ((recipe?.shapeType == VFXMeshShapeType.Ring ||
+                 recipe?.shapeType == VFXMeshShapeType.Arc) &&
+                shape != null)
+            {
+                var innerRadius = shape.innerRadius;
+                var zeroInnerRadius =
+                    float.IsNaN(innerRadius) ||
+                    float.IsInfinity(innerRadius) ||
+                    Mathf.Abs(innerRadius) < 0.0001f;
+                usesCenterVertex |=
+                    zeroInnerRadius &&
+                    (recipe.shapeType != VFXMeshShapeType.Arc ||
+                     !VFXShapeGenerator.UsesVariableArcWidthTopology(shape));
+            }
+
+            return usesCenterVertex
+                ? draft.vertices[0]
+                : fallbackCenter;
+        }
+
+        private static Bounds CalculateBounds(
+            IReadOnlyList<Vector3> vertices,
+            int count)
+        {
+            count = Mathf.Clamp(count, 0, vertices?.Count ?? 0);
+            if (count == 0)
+            {
+                return new Bounds(Vector3.zero, Vector3.zero);
+            }
+
+            var bounds = new Bounds(vertices[0], Vector3.zero);
+            for (var index = 1; index < count; index++)
+            {
+                bounds.Encapsulate(vertices[index]);
+            }
+
+            return bounds;
+        }
+
+        private static void GetProjectionRange(
+            IReadOnlyList<Vector3> vertices,
+            Vector3 direction,
+            int count,
+            out float minimum,
+            out float maximum)
+        {
+            count = Mathf.Clamp(count, 0, vertices?.Count ?? 0);
+            if (count == 0)
+            {
+                minimum = 0f;
+                maximum = 0f;
+                return;
+            }
+
+            minimum = Vector3.Dot(vertices[0], direction);
+            maximum = minimum;
+            for (var index = 1; index < count; index++)
+            {
+                var value = Vector3.Dot(vertices[index], direction);
+                minimum = Mathf.Min(minimum, value);
+                maximum = Mathf.Max(maximum, value);
+            }
+        }
+
         private static Vector2 Transform(Vector2 uv, VFXUVSettings settings)
         {
             if (settings.swapUV)
@@ -271,7 +454,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private static float Angle01(Vector3 radial, Vector3 radialA, Vector3 radialB)
         {
-            if (radial.sqrMagnitude <= VFXProcessingUtility.Epsilon)
+            if (radial.sqrMagnitude <=
+                VFXProcessingUtility.Epsilon *
+                VFXProcessingUtility.Epsilon)
             {
                 return 0.5f;
             }

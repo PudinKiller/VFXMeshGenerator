@@ -82,6 +82,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public static readonly GUIContent ArcWidthCurve = Create(
             "Angular Width Curve",
             "Curve time runs from arc start (0) to end (1). Values from 0 to 1 multiply radial thickness around the centerline; use zero at an endpoint for a pointed slash tip.");
+        public static readonly GUIContent MirrorArcAcrossShapePlane = Create(
+            "Mirror Across Shape Plane",
+            "Add a disconnected second Arc shell reflected across the plane perpendicular to Main Axis. With Main Axis Y this is the XZ plane. Both shells keep identical UVs so texture scrolling moves in the same direction, then modifiers affect each shell independently. This is different from Double Sided.");
         public static readonly GUIContent WidthCurve = Create(
             "Width Curve",
             "Curve time runs from shape start (0) to end (1). Values multiply local width.");
@@ -251,7 +254,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public static readonly GUIContent SavePreset = Create("Save New", "Create a new recipe preset asset.");
         public static readonly GUIContent DefaultFolder = Create(
             "Default Folder",
-            "Initial folder for mesh and preset save dialogs. Assets are not saved automatically.");
+            "Project folder used initially by mesh and preset save dialogs. Drag a folder from the Project window here. Assets are not saved automatically.");
         public static readonly GUIContent BrowseFolder = Create("…", "Choose the default output folder.");
         public static readonly GUIContent UpdateMesh = Create(
             "Update Mesh",

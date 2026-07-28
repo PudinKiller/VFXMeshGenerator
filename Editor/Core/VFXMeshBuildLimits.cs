@@ -71,8 +71,15 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         break;
 
                     case VFXMeshShapeType.Ring:
+                        baseVertices = (long)(width + 1) * (radial + 1);
+                        break;
+
                     case VFXMeshShapeType.Arc:
                         baseVertices = (long)(width + 1) * (radial + 1);
+                        if (shape.mirrorArcAcrossShapePlane)
+                        {
+                            baseVertices *= 2L;
+                        }
                         break;
 
                     case VFXMeshShapeType.Cone:

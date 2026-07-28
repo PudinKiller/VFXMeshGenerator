@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Added Project-window folder drag and drop for the default output folder.
+- Added project-scoped persistence for the current recipe, output folder, preview preferences, and editor foldouts.
+- Fixed Radial projection at Disc center poles to prevent pinwheel-shaped UV distortion.
+- Added an optional mirrored Arc shell with matching UVs for volumetric slash meshes.
+
 ## 0.2.0
 
 - Made Ring a dedicated closed 360-degree shape and Arc a distinct partial-sweep shape.

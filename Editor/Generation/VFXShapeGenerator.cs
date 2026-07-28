@@ -40,6 +40,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     break;
                 case VFXMeshShapeType.Arc:
                     GenerateArc(shape, draft);
+                    if (shape.mirrorArcAcrossShapePlane)
+                    {
+                        AppendMirroredArcShell(draft);
+                    }
                     break;
                 case VFXMeshShapeType.Cone:
                     GenerateFrustum(shape, draft, Positive(shape.radius), NonNegative(shape.topRadius));
@@ -205,6 +209,27 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             GenerateVariableWidthArc(shape, draft, angularSegments);
+        }
+
+        private static void AppendMirroredArcShell(VFXMeshDraft draft)
+        {
+            var sourceVertexCount = draft.vertices.Count;
+            var sourceTriangleCount = draft.triangles.Count;
+            for (var vertex = 0; vertex < sourceVertexCount; vertex++)
+            {
+                var position = draft.vertices[vertex];
+                draft.AddVertex(
+                    new Vector3(position.x, -position.y, position.z),
+                    draft.uv0[vertex]);
+            }
+
+            for (var triangle = 0; triangle + 2 < sourceTriangleCount; triangle += 3)
+            {
+                draft.AddTriangle(
+                    draft.triangles[triangle] + sourceVertexCount,
+                    draft.triangles[triangle + 2] + sourceVertexCount,
+                    draft.triangles[triangle + 1] + sourceVertexCount);
+            }
         }
 
         private static void GenerateRing(

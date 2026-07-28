@@ -218,6 +218,12 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var variableArcTopology =
                 isClosedArc &&
                 VFXShapeGenerator.UsesVariableArcWidthTopology(recipe.shape);
+            var mirrorsArc =
+                isClosedArc &&
+                recipe.shape.mirrorArcAcrossShapePlane;
+            var mirroredShellOffset = mirrorsArc
+                ? GetArcShellVertexCount(recipe.shape, variableArcTopology)
+                : 0;
             SmoothClosedRadialSide(
                 recipe.shape,
                 vertices,
@@ -225,6 +231,17 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 0,
                 sideVertexCount,
                 variableArcTopology);
+            if (mirrorsArc)
+            {
+                SmoothClosedRadialSide(
+                    recipe.shape,
+                    vertices,
+                    normals,
+                    mirroredShellOffset,
+                    sideVertexCount,
+                    variableArcTopology);
+            }
+
             if (output.doubleSided)
             {
                 SmoothClosedRadialSide(
@@ -234,9 +251,57 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     sideVertexCount,
                     vertices.Length,
                     variableArcTopology);
+                if (mirrorsArc)
+                {
+                    SmoothClosedRadialSide(
+                        recipe.shape,
+                        vertices,
+                        normals,
+                        sideVertexCount + mirroredShellOffset,
+                        vertices.Length,
+                        variableArcTopology);
+                }
             }
 
             mesh.normals = normals;
+        }
+
+        private static int GetArcShellVertexCount(
+            VFXShapeSettings shape,
+            bool variableArcTopology)
+        {
+            var angularSegments = Mathf.Clamp(
+                shape.radialSegments,
+                3,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var radialSegments = Mathf.Clamp(
+                shape.widthSegments,
+                1,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            if (!variableArcTopology)
+            {
+                var innerRadius = shape.innerRadius;
+                var usesDiscTopology =
+                    float.IsNaN(innerRadius) ||
+                    float.IsInfinity(innerRadius) ||
+                    Mathf.Abs(innerRadius) < 0.0001f;
+                return usesDiscTopology
+                    ? 1 + radialSegments * (angularSegments + 1)
+                    : (radialSegments + 1) * (angularSegments + 1);
+            }
+
+            var radialVertexCount = radialSegments + 1;
+            var vertexCount = 0;
+            for (var segment = 0; segment <= angularSegments; segment++)
+            {
+                var angularT = segment / (float)angularSegments;
+                vertexCount +=
+                    VFXShapeGenerator.EvaluateArcWidth(shape, angularT) <= 0.0001f
+                        ? 1
+                        : radialVertexCount;
+            }
+
+            return vertexCount;
         }
 
         private static void SmoothClosedRadialSide(

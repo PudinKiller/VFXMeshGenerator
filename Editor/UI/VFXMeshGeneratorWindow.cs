@@ -11,6 +11,28 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private const float ToolbarHeight = 24f;
         private const float MinimumSettingsWidth = 350f;
         private const float MaximumSettingsWidth = 500f;
+        private const int PersistentStateVersion = 1;
+        private const double PersistentStateSaveDelay = 0.2d;
+        private const string PersistentStateKeyPrefix =
+            "com.pudinkiller.vfx-mesh-generator.window-state.";
+
+        [Serializable]
+        private sealed class PersistentState
+        {
+            public int version = PersistentStateVersion;
+            public VFXMeshRecipe recipe = new VFXMeshRecipe();
+            public string outputFolder = "Assets";
+            public int previewMode;
+            public Color previewBackground = new Color(0.11f, 0.12f, 0.14f, 1f);
+            public int modifierToAdd = (int)VFXModifierType.Noise;
+            public bool shapeExpanded = true;
+            public bool modifiersExpanded = true;
+            public bool uvExpanded = true;
+            public bool vertexDataExpanded;
+            public bool outputExpanded = true;
+            public bool presetsExpanded;
+            public string selectedPresetGuid;
+        }
 
         [SerializeField] private VFXMeshRecipe recipe = new VFXMeshRecipe();
         [SerializeField] private VFXMeshRecipePreset selectedPreset;
@@ -33,6 +55,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private bool vertexDataExpanded;
         private bool outputExpanded = true;
         private bool presetsExpanded;
+        private string persistentStateKey;
+        private bool persistentStateSavePending;
+        private double persistentStateSaveTime;
 
         [MenuItem("Tools/VFX Mesh Generator")]
         public static void Open()
@@ -45,13 +70,21 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private void OnEnable()
         {
-            recipe ??= new VFXMeshRecipe();
+            persistentStateKey = BuildPersistentStateKey();
+            LoadPersistentState();
+            EnsureRecipeState();
+            outputFolder = IsWritableAssetFolder(outputFolder)
+                ? NormalizeAssetPath(outputFolder)
+                : "Assets";
             preview = new VFXMeshPreviewController();
             ScheduleRebuild(0d);
         }
 
         private void OnDisable()
         {
+            SavePersistentState();
+            EditorApplication.update -= SavePersistentStateWhenDue;
+            persistentStateSavePending = false;
             ReleaseBuildResult();
             preview?.Dispose();
             preview = null;
@@ -96,10 +129,15 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             GUILayout.Label("VFX Mesh Generator", EditorStyles.boldLabel);
             GUILayout.FlexibleSpace();
 
-            previewMode = (VFXPreviewMode)EditorGUILayout.EnumPopup(
+            var selectedPreviewMode = (VFXPreviewMode)EditorGUILayout.EnumPopup(
                 previewMode,
                 EditorStyles.toolbarPopup,
                 GUILayout.Width(145f));
+            if (selectedPreviewMode != previewMode)
+            {
+                previewMode = selectedPreviewMode;
+                QueuePersistentStateSave();
+            }
             DrawTooltipOverLastControl(VFXMeshGeneratorContent.PreviewMode);
 
             if (GUILayout.Button(
@@ -215,6 +253,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             if (EditorGUI.EndChangeCheck())
             {
                 EditorUtility.SetDirty(this);
+                QueuePersistentStateSave();
                 ScheduleRebuild();
             }
 
@@ -277,6 +316,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     settings.arcWidthCurve = EditorGUILayout.CurveField(
                         VFXMeshGeneratorContent.ArcWidthCurve,
                         settings.arcWidthCurve);
+                    settings.mirrorArcAcrossShapePlane = EditorGUILayout.Toggle(
+                        VFXMeshGeneratorContent.MirrorArcAcrossShapePlane,
+                        settings.mirrorArcAcrossShapePlane);
                     settings.arcDegrees = Mathf.Clamp(
                         EditorGUILayout.FloatField(
                             VFXMeshGeneratorContent.ArcDegrees,
@@ -598,11 +640,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 var item = recipe.modifiers[moveFrom];
                 recipe.modifiers.RemoveAt(moveFrom);
                 recipe.modifiers.Insert(moveTo, item);
+                GUI.changed = true;
             }
 
             if (removeIndex >= 0)
             {
                 recipe.modifiers.RemoveAt(removeIndex);
+                GUI.changed = true;
             }
 
             EditorGUILayout.BeginHorizontal();
@@ -827,7 +871,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 if (GUILayout.Button(VFXMeshGeneratorContent.LoadPreset))
                 {
-                    recipe = selectedPreset.recipe.DeepCopy();
+                    recipe = selectedPreset.recipe?.DeepCopy() ?? new VFXMeshRecipe();
+                    EnsureRecipeState();
+                    SavePersistentState();
                     ScheduleRebuild(0d);
                     GUIUtility.ExitGUI();
                 }
@@ -853,12 +899,34 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             EditorGUILayout.LabelField("Asset Output", EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
-            outputFolder = EditorGUILayout.TextField(VFXMeshGeneratorContent.DefaultFolder, outputFolder);
+            var currentFolderAsset =
+                IsWritableAssetFolder(outputFolder)
+                    ? AssetDatabase.LoadAssetAtPath<DefaultAsset>(outputFolder)
+                    : null;
+            EditorGUI.BeginChangeCheck();
+            var selectedFolderAsset = (DefaultAsset)EditorGUILayout.ObjectField(
+                VFXMeshGeneratorContent.DefaultFolder,
+                currentFolderAsset,
+                typeof(DefaultAsset),
+                false);
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (selectedFolderAsset == null)
+                {
+                    SetOutputFolder("Assets", false);
+                }
+                else
+                {
+                    SetOutputFolder(AssetDatabase.GetAssetPath(selectedFolderAsset), true);
+                }
+            }
+
             if (GUILayout.Button(VFXMeshGeneratorContent.BrowseFolder, GUILayout.Width(28f)))
             {
                 SelectOutputFolder();
             }
             EditorGUILayout.EndHorizontal();
+            EditorGUILayout.LabelField(outputFolder, EditorStyles.miniLabel);
 
             updateTarget = (Mesh)EditorGUILayout.ObjectField(
                 VFXMeshGeneratorContent.UpdateMesh,
@@ -965,7 +1033,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 return;
             }
 
-            var folder = AssetDatabase.IsValidFolder(outputFolder) ? outputFolder : "Assets";
+            var folder = IsWritableAssetFolder(outputFolder) ? outputFolder : "Assets";
             var defaultName = SanitizeAssetName(recipe.meshName);
             var path = EditorUtility.SaveFilePanelInProject(
                 "Generate VFX Mesh",
@@ -986,7 +1054,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             updateTarget = result.mesh;
-            outputFolder = Path.GetDirectoryName(result.assetPath)?.Replace('\\', '/') ?? "Assets";
+            SetOutputFolder(
+                Path.GetDirectoryName(result.assetPath)?.Replace('\\', '/') ?? "Assets",
+                false);
             Selection.activeObject = result.mesh;
             EditorGUIUtility.PingObject(result.mesh);
             ShowNotification(new GUIContent($"Generated {result.assetPath}"));
@@ -1020,7 +1090,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 $"{SanitizeAssetName(recipe.meshName)} Preset",
                 "asset",
                 "Choose where to save the generator preset.",
-                AssetDatabase.IsValidFolder(outputFolder) ? outputFolder : "Assets");
+                IsWritableAssetFolder(outputFolder) ? outputFolder : "Assets");
             if (string.IsNullOrEmpty(path))
             {
                 return;
@@ -1032,32 +1102,243 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             AssetDatabase.CreateAsset(preset, path);
             AssetDatabase.SaveAssets();
             selectedPreset = preset;
+            SetOutputFolder(
+                Path.GetDirectoryName(path)?.Replace('\\', '/') ?? "Assets",
+                false);
             Selection.activeObject = preset;
             EditorGUIUtility.PingObject(preset);
         }
 
         private void SelectOutputFolder()
         {
+            var initialFolder = Application.dataPath;
+            if (IsWritableAssetFolder(outputFolder))
+            {
+                var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+                initialFolder = Path.GetFullPath(Path.Combine(projectRoot, outputFolder));
+            }
+
             var absolute = EditorUtility.OpenFolderPanel(
                 "Select Output Folder",
-                Application.dataPath,
+                initialFolder,
                 string.Empty);
             if (string.IsNullOrEmpty(absolute))
             {
                 return;
             }
 
-            var relative = FileUtil.GetProjectRelativePath(absolute);
-            if (string.IsNullOrEmpty(relative) || !AssetDatabase.IsValidFolder(relative))
+            SetOutputFolder(FileUtil.GetProjectRelativePath(absolute), true);
+        }
+
+        private bool SetOutputFolder(string path, bool notifyOnFailure)
+        {
+            var normalized = NormalizeAssetPath(path);
+            if (!IsWritableAssetFolder(normalized))
             {
-                EditorUtility.DisplayDialog(
-                    "VFX Mesh Generator",
-                    "Mesh assets must be saved inside this project's Assets folder.",
-                    "OK");
+                if (notifyOnFailure)
+                {
+                    ShowNotification(
+                        new GUIContent(
+                            "Choose a project folder inside Assets. Package folders and files cannot be used."));
+                }
+
+                return false;
+            }
+
+            outputFolder = normalized;
+            SavePersistentState();
+            return true;
+        }
+
+        private static bool IsWritableAssetFolder(string path)
+        {
+            var normalized = NormalizeAssetPath(path);
+            return !string.IsNullOrEmpty(normalized) &&
+                   (string.Equals(normalized, "Assets", StringComparison.Ordinal) ||
+                    normalized.StartsWith("Assets/", StringComparison.Ordinal)) &&
+                   AssetDatabase.IsValidFolder(normalized);
+        }
+
+        private static string NormalizeAssetPath(string path)
+        {
+            return string.IsNullOrWhiteSpace(path)
+                ? string.Empty
+                : path.Trim().Replace('\\', '/').TrimEnd('/');
+        }
+
+        private static string BuildPersistentStateKey()
+        {
+            var projectRoot =
+                Path.GetFullPath(Path.Combine(Application.dataPath, ".."))
+                    .Replace('\\', '/')
+                    .TrimEnd('/');
+            if (Application.platform == RuntimePlatform.WindowsEditor)
+            {
+                projectRoot = projectRoot.ToLowerInvariant();
+            }
+
+            return PersistentStateKeyPrefix +
+                   Hash128.Compute(projectRoot) +
+                   ".v" +
+                   PersistentStateVersion;
+        }
+
+        private void LoadPersistentState()
+        {
+            if (string.IsNullOrEmpty(persistentStateKey) ||
+                !EditorPrefs.HasKey(persistentStateKey))
+            {
+                outputFolder = IsWritableAssetFolder(outputFolder) ? outputFolder : "Assets";
                 return;
             }
 
-            outputFolder = relative;
+            try
+            {
+                var json = EditorPrefs.GetString(persistentStateKey, string.Empty);
+                var state = new PersistentState();
+                JsonUtility.FromJsonOverwrite(json, state);
+                if (state.version != PersistentStateVersion)
+                {
+                    EditorPrefs.DeleteKey(persistentStateKey);
+                    return;
+                }
+
+                recipe = state.recipe ?? new VFXMeshRecipe();
+                outputFolder = IsWritableAssetFolder(state.outputFolder)
+                    ? NormalizeAssetPath(state.outputFolder)
+                    : "Assets";
+                previewMode = Enum.IsDefined(typeof(VFXPreviewMode), state.previewMode)
+                    ? (VFXPreviewMode)state.previewMode
+                    : VFXPreviewMode.Shaded;
+                previewBackground = state.previewBackground;
+                modifierToAdd = Enum.IsDefined(typeof(VFXModifierType), state.modifierToAdd)
+                    ? (VFXModifierType)state.modifierToAdd
+                    : VFXModifierType.Noise;
+                shapeExpanded = state.shapeExpanded;
+                modifiersExpanded = state.modifiersExpanded;
+                uvExpanded = state.uvExpanded;
+                vertexDataExpanded = state.vertexDataExpanded;
+                outputExpanded = state.outputExpanded;
+                presetsExpanded = state.presetsExpanded;
+                selectedPreset = LoadAssetFromGuid<VFXMeshRecipePreset>(
+                    state.selectedPresetGuid);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    "VFX Mesh Generator could not restore its editor state: " +
+                    exception.Message);
+                EditorPrefs.DeleteKey(persistentStateKey);
+                outputFolder = "Assets";
+            }
+        }
+
+        private void QueuePersistentStateSave()
+        {
+            if (string.IsNullOrEmpty(persistentStateKey))
+            {
+                return;
+            }
+
+            persistentStateSavePending = true;
+            persistentStateSaveTime =
+                EditorApplication.timeSinceStartup + PersistentStateSaveDelay;
+            EditorApplication.update -= SavePersistentStateWhenDue;
+            EditorApplication.update += SavePersistentStateWhenDue;
+        }
+
+        private void SavePersistentStateWhenDue()
+        {
+            if (!persistentStateSavePending ||
+                EditorApplication.timeSinceStartup < persistentStateSaveTime)
+            {
+                return;
+            }
+
+            SavePersistentState();
+        }
+
+        private void SavePersistentState()
+        {
+            persistentStateSavePending = false;
+            EditorApplication.update -= SavePersistentStateWhenDue;
+            if (string.IsNullOrEmpty(persistentStateKey))
+            {
+                return;
+            }
+
+            try
+            {
+                var state = new PersistentState
+                {
+                    recipe = recipe ?? new VFXMeshRecipe(),
+                    outputFolder = IsWritableAssetFolder(outputFolder)
+                        ? NormalizeAssetPath(outputFolder)
+                        : "Assets",
+                    previewMode = (int)previewMode,
+                    previewBackground = previewBackground,
+                    modifierToAdd = (int)modifierToAdd,
+                    shapeExpanded = shapeExpanded,
+                    modifiersExpanded = modifiersExpanded,
+                    uvExpanded = uvExpanded,
+                    vertexDataExpanded = vertexDataExpanded,
+                    outputExpanded = outputExpanded,
+                    presetsExpanded = presetsExpanded,
+                    selectedPresetGuid = GetAssetGuid(selectedPreset)
+                };
+                EditorPrefs.SetString(persistentStateKey, JsonUtility.ToJson(state));
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    "VFX Mesh Generator could not save its editor state: " +
+                    exception.Message);
+            }
+        }
+
+        private void EnsureRecipeState()
+        {
+            recipe ??= new VFXMeshRecipe();
+            recipe.shape ??= new VFXShapeSettings();
+            recipe.modifiers ??= new List<VFXMeshModifierSettings>();
+            for (var index = 0; index < recipe.modifiers.Count; index++)
+            {
+                recipe.modifiers[index] ??= new VFXMeshModifierSettings();
+            }
+
+            recipe.uv ??= new VFXUVSettings();
+            recipe.vertexData ??= new VFXVertexDataSettings();
+            recipe.vertexData.uv1 ??= new VFXChannelPackSettings();
+            recipe.vertexData.uv2 ??= new VFXChannelPackSettings();
+            recipe.vertexData.uv3 ??= new VFXChannelPackSettings();
+            recipe.output ??= new VFXMeshOutputSettings();
+        }
+
+        private static string GetAssetGuid(UnityEngine.Object asset)
+        {
+            if (asset == null)
+            {
+                return string.Empty;
+            }
+
+            var path = AssetDatabase.GetAssetPath(asset);
+            return string.IsNullOrEmpty(path)
+                ? string.Empty
+                : AssetDatabase.AssetPathToGUID(path);
+        }
+
+        private static T LoadAssetFromGuid<T>(string guid)
+            where T : UnityEngine.Object
+        {
+            if (string.IsNullOrEmpty(guid))
+            {
+                return null;
+            }
+
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            return string.IsNullOrEmpty(path)
+                ? null
+                : AssetDatabase.LoadAssetAtPath<T>(path);
         }
 
         private void ReleaseBuildResult()
