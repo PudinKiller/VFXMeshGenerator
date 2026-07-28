@@ -12,6 +12,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public readonly List<Vector4> uv2 = new List<Vector4>();
         public readonly List<Vector4> uv3 = new List<Vector4>();
         public readonly List<Color> colors = new List<Color>();
+        internal readonly List<Vector2Int> uvNormalWeldPairs =
+            new List<Vector2Int>();
 
         public int AddVertex(Vector3 position, Vector2 uv)
         {

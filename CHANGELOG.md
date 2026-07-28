@@ -2,6 +2,22 @@
 
 All notable changes to VFX Mesh Generator are documented in this file.
 
+## 0.6.0 - 2026-07-28
+
+### Added
+
+- Added a Reset button that restores only the active shape profile while preserving every other shape and recipe setting.
+- Added partial Disc sweeps for open fan meshes.
+- Added axial elevation and radial vertex-distribution curves for Disc, with the distribution control also available on Ring and Arc.
+- Exposed context-specific scale curves for Quad, Cone, Cylinder, Tube, Sphere, Hemisphere, Torus, Box, Cross Planes, Ribbon, and Helix.
+- Extended width-aware Shape Default UV modes to Quad, Cross Planes, and Helix strips.
+
+### Fixed
+
+- Kept full Torus profile-scale seams closed when curve endpoints differ.
+- Smoothed duplicated angular seam normals on elevated full Disc meshes.
+- Preserved smooth curved-surface normals across UV-only center and seam splits.
+
 ## 0.5.0 - 2026-07-28
 
 ### Added

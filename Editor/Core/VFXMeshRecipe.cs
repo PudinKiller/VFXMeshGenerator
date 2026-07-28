@@ -55,6 +55,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public VFXPivot pivot = VFXPivot.Center;
         public Vector3 customPivotOffset;
         public AnimationCurve widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+        public AnimationCurve radialDistributionCurve =
+            AnimationCurve.Linear(0f, 0f, 1f, 1f);
         public AnimationCurve radialElevationCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f);
         public AnimationCurve arcWidthCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
     }

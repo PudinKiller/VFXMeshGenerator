@@ -125,6 +125,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             DuplicateOptionalChannel(draft.uv2, previousVertexCount, sourceIndex);
             DuplicateOptionalChannel(draft.uv3, previousVertexCount, sourceIndex);
             DuplicateOptionalChannel(draft.colors, previousVertexCount, sourceIndex);
+            draft.uvNormalWeldPairs.Add(
+                new Vector2Int(sourceIndex, duplicateIndex));
             return duplicateIndex;
         }
 

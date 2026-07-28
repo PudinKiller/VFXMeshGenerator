@@ -83,6 +83,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private void OnEnable()
         {
+            Undo.undoRedoPerformed -= OnUndoRedo;
+            Undo.undoRedoPerformed += OnUndoRedo;
             persistentStateKey = BuildPersistentStateKey();
             LoadPersistentState();
             EnsureRecipeState();
@@ -97,6 +99,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private void OnDisable()
         {
+            Undo.undoRedoPerformed -= OnUndoRedo;
             SavePersistentState();
             EditorApplication.update -= SavePersistentStateWhenDue;
             persistentStateSavePending = false;
@@ -224,9 +227,18 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             EditorGUI.BeginChangeCheck();
 
             recipe.meshName = EditorGUILayout.TextField(VFXMeshGeneratorContent.MeshName, recipe.meshName);
+            EditorGUILayout.BeginHorizontal();
             var selectedShape = (VFXMeshShapeType)EditorGUILayout.EnumPopup(
                 VFXMeshGeneratorContent.Shape,
                 recipe.shapeType);
+            if (GUILayout.Button(
+                    VFXMeshGeneratorContent.ResetShapeProfile,
+                    GUILayout.Width(52f)))
+            {
+                ResetCurrentShapeProfile();
+                GUI.changed = true;
+            }
+            EditorGUILayout.EndHorizontal();
             if (selectedShape != recipe.shapeType)
             {
                 SwitchShape(selectedShape);
@@ -315,6 +327,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.LengthSegments,
                         settings.lengthSegments,
                         1);
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawWidthProfileUVMode(settings);
                     break;
 
                 case VFXMeshShapeType.Disc:
@@ -327,6 +341,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.RadialResolution,
                         settings.widthSegments,
                         1);
+                    DrawRadialDistribution(settings);
+                    DrawRadialElevation(settings);
+                    settings.arcDegrees = Mathf.Clamp(
+                        EditorGUILayout.FloatField(
+                            VFXMeshGeneratorContent.DiscArcDegrees,
+                            settings.arcDegrees),
+                        0.1f,
+                        360f);
                     settings.angleOffset = EditorGUILayout.FloatField(
                         VFXMeshGeneratorContent.AngleOffset,
                         settings.angleOffset);
@@ -334,6 +356,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                 case VFXMeshShapeType.Ring:
                     DrawAnnulusSettings(settings);
+                    DrawRadialDistribution(settings);
                     DrawRadialElevation(settings);
                     settings.angleOffset = EditorGUILayout.FloatField(
                         VFXMeshGeneratorContent.AngleOffset,
@@ -342,6 +365,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                 case VFXMeshShapeType.Arc:
                     DrawAnnulusSettings(settings);
+                    DrawRadialDistribution(settings);
                     DrawRadialElevation(settings);
                     if (settings.arcWidthCurve == null)
                     {
@@ -376,12 +400,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         EditorGUILayout.FloatField(
                             new GUIContent("Top Radius", "Set to zero for a pointed cone."),
                             settings.topRadius));
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.RadiusScaleCurve);
                     DrawRadialVolumeSettings(settings);
                     break;
 
                 case VFXMeshShapeType.Cylinder:
                     settings.height = PositiveFloat(new GUIContent("Height"), settings.height);
                     settings.radius = PositiveFloat(new GUIContent("Radius"), settings.radius);
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.RadiusScaleCurve);
                     DrawRadialVolumeSettings(settings);
                     break;
 
@@ -397,6 +423,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         EditorGUILayout.FloatField(
                             VFXMeshGeneratorContent.OuterRadius,
                             settings.radius));
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.RadiusScaleCurve);
                     DrawRadialVolumeSettings(settings);
                     break;
 
@@ -411,6 +438,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.Latitude,
                         settings.latitudeSegments,
                         2);
+                    DrawScaleCurve(
+                        settings,
+                        VFXMeshGeneratorContent.RadialProfileScaleCurve);
                     if (shapeType == VFXMeshShapeType.Hemisphere)
                     {
                         settings.capEnd = EditorGUILayout.Toggle(
@@ -432,6 +462,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.TubeSegments,
                         settings.radialSegments,
                         3);
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.TubeScaleCurve);
                     settings.arcDegrees = Mathf.Clamp(
                         EditorGUILayout.FloatField(
                             VFXMeshGeneratorContent.VolumeArcDegrees,
@@ -462,6 +493,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.ZSegments,
                         settings.lengthSegments,
                         1);
+                    DrawScaleCurve(
+                        settings,
+                        VFXMeshGeneratorContent.CrossSectionScaleCurve);
                     break;
 
                 case VFXMeshShapeType.Ribbon:
@@ -475,13 +509,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.LengthSegments,
                         settings.lengthSegments,
                         1);
-                    settings.widthCurve = EditorGUILayout.CurveField(
-                        VFXMeshGeneratorContent.WidthCurve,
-                        settings.widthCurve);
-                    settings.ribbonUVWidthMode =
-                        (VFXRibbonUVWidthMode)EditorGUILayout.EnumPopup(
-                            VFXMeshGeneratorContent.RibbonUVWidthMode,
-                            settings.ribbonUVWidthMode);
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawWidthProfileUVMode(settings);
                     break;
 
                 case VFXMeshShapeType.CrossPlanes:
@@ -501,6 +530,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.HeightSegments,
                         settings.lengthSegments,
                         1);
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawWidthProfileUVMode(settings);
                     settings.angleOffset = EditorGUILayout.FloatField(
                         VFXMeshGeneratorContent.AngleOffset,
                         settings.angleOffset);
@@ -526,9 +557,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         VFXMeshGeneratorContent.WidthSegments,
                         settings.widthSegments,
                         1);
-                    settings.widthCurve = EditorGUILayout.CurveField(
-                        VFXMeshGeneratorContent.WidthCurve,
-                        settings.widthCurve);
+                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawWidthProfileUVMode(settings);
                     settings.angleOffset = EditorGUILayout.FloatField(
                         VFXMeshGeneratorContent.AngleOffset,
                         settings.angleOffset);
@@ -561,6 +591,36 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             RememberShapeSettings(recipe.shapeType, recipe.shape);
             recipe.shapeType = selectedShape;
             recipe.shape = RecallShapeSettings(selectedShape);
+        }
+
+        private void ResetCurrentShapeProfile()
+        {
+            EnsureRecipeState();
+            Undo.RegisterCompleteObjectUndo(
+                this,
+                "Reset " +
+                ObjectNames.NicifyVariableName(recipe.shapeType.ToString()) +
+                " Shape Profile");
+            recipe.shape = CreateDefaultShapeSettings(recipe.shapeType);
+            RememberShapeSettings(recipe.shapeType, recipe.shape);
+            if (Event.current != null)
+            {
+                GUI.FocusControl(null);
+            }
+            EditorUtility.SetDirty(this);
+            QueuePersistentStateSave();
+            ScheduleRebuild(0d);
+            Repaint();
+        }
+
+        private void OnUndoRedo()
+        {
+            EnsureRecipeState();
+            NormalizeShapeSettingsMemory();
+            RememberShapeSettings(recipe.shapeType, recipe.shape);
+            QueuePersistentStateSave();
+            ScheduleRebuild(0d);
+            Repaint();
         }
 
         private static VFXShapeSettings CreateDefaultShapeSettings(
@@ -716,6 +776,33 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             settings.radialElevationCurve = EditorGUILayout.CurveField(
                 VFXMeshGeneratorContent.AxialElevationCurve,
                 settings.radialElevationCurve);
+        }
+
+        private static void DrawRadialDistribution(VFXShapeSettings settings)
+        {
+            settings.radialDistributionCurve ??=
+                AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            settings.radialDistributionCurve = EditorGUILayout.CurveField(
+                VFXMeshGeneratorContent.RadialVertexDistribution,
+                settings.radialDistributionCurve);
+        }
+
+        private static void DrawScaleCurve(
+            VFXShapeSettings settings,
+            GUIContent content)
+        {
+            settings.widthCurve ??= AnimationCurve.Linear(0f, 1f, 1f, 1f);
+            settings.widthCurve = EditorGUILayout.CurveField(
+                content,
+                settings.widthCurve);
+        }
+
+        private static void DrawWidthProfileUVMode(VFXShapeSettings settings)
+        {
+            settings.ribbonUVWidthMode =
+                (VFXRibbonUVWidthMode)EditorGUILayout.EnumPopup(
+                    VFXMeshGeneratorContent.RibbonUVWidthMode,
+                    settings.ribbonUVWidthMode);
         }
 
         private static void DrawRadialVolumeSettings(VFXShapeSettings settings)

@@ -3,7 +3,7 @@
 ![Unity](https://img.shields.io/badge/Unity-6%2B-black)
 ![Render Pipeline](https://img.shields.io/badge/Render%20Pipeline-URP-5b7fff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.5.0-orange)
+![Version](https://img.shields.io/badge/version-0.6.0-orange)
 
 A free and open-source Unity 6+ editor tool for generating and art-directing procedural meshes for real-time VFX workflows.
 
@@ -78,7 +78,7 @@ It is a focused Unity editor utility for the procedural VFX meshes that need to 
 |---|---|
 | 14 procedural base shapes | Start from common VFX geometry instead of an empty modeling scene |
 | Ordered modifier stack | Layer transform, taper, twist, bend, wave, ripple, noise, and other deformations |
-| Curve-driven profiles | Art-direct Ribbon and Helix width, Ring elevation, and Arc width/elevation |
+| Curve-driven profiles | Scale strips, volumes, spheres, torus tubes, and box cross-sections; shape radial elevation and vertex distribution |
 | Mirrored Arc shells | Build paired slash or crescent shells with matching UV direction |
 | UV projection tools | Generate planar, radial, cylindrical, spherical, along-length, or box UV0 |
 | VFX vertex data | Write colors and packed `Vector4` data into UV1, UV2, and UV3 |
@@ -87,6 +87,7 @@ It is a focused Unity editor utility for the procedural VFX meshes that need to 
 | Native Mesh output | Create standalone `.asset` meshes with no runtime package dependency |
 | Reference-preserving updates | Regenerate an existing Mesh asset while preserving its GUID and references |
 | Project-scoped persistence | Restore independent settings per shape, output folder, preview preferences, and foldouts |
+| Active-shape reset | Restore one shape profile without touching modifiers, UVs, output, or other remembered shapes |
 | Editor safety limits | Reject excessive topology before synchronous generation begins |
 
 ---
@@ -118,10 +119,10 @@ In Unity:
 4. Paste:
 
 ```text
-https://github.com/PudinKiller/VFXMeshGenerator.git#v0.5.0
+https://github.com/PudinKiller/VFXMeshGenerator.git#v0.6.0
 ```
 
-Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v0.5.0`.
+Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v0.6.0`.
 
 <details>
 <summary><b>Install without Git</b></summary>
@@ -206,6 +207,8 @@ When `UV Checker` is selected, the toolbar exposes an optional custom Texture2D.
 
 The overlay displays vertex count, triangle count, bounds, validation flags, and generation warnings.
 
+The `Reset` button beside the Shape selector restores only the selected shape profile. It does not clear other remembered shapes, modifiers, UV settings, vertex data, output settings, or the mesh name.
+
 ---
 
 ## Common Workflows
@@ -235,7 +238,27 @@ Double Sided: Enable only when independently lit backfaces are required
 
 The Angular Width Curve scales radial thickness around the selected origin. `Outer Rim` moves only the inner radius, `Middle` moves both radii evenly, and `Inner Rim` moves only the outer radius. A zero curve value collapses the strip to the selected radial origin. Axial elevation remains referenced to the outer rim so mirrored shells stay joined.
 
+Use `Radial Vertex Distribution` to move intermediate radial rows without changing either rim. A curve above the diagonal concentrates rows near the outer rim.
+
 `Mirror Across Shape Plane` creates a disconnected reflected shell with matching UVs and aligns both shells at the outer rim. It is different from `Double Sided`, which duplicates reversed faces at the same positions.
+
+</details>
+
+<details>
+<summary><b>Create a fan, sector, or curved impact disc</b></summary>
+
+Start with:
+
+```text
+Shape: Disc
+Arc Degrees: Reduce below 360 for an open fan
+Angle Offset: Rotate the fan
+Radial Resolution: Add center-to-rim rows
+Radial Vertex Distribution: Bias rows toward the inner or outer rim
+Axial Elevation Curve: Push the surface along Main Axis
+```
+
+The distribution curve remaps vertex positions only: the center and outer boundary remain fixed. Keep it rising from 0 to 1; place it above the diagonal to pack more rows near the outer rim.
 
 </details>
 
@@ -249,6 +272,7 @@ Shape: Ring
 Inner Radius: Set the hole size
 Outer Radius: Set the effect radius
 Axial Elevation Curve: Shape a flat, raised, or curved profile
+Radial Vertex Distribution: Control inner-to-outer row density
 ```
 
 Try a radial or shape-default UV layout depending on how the shader samples its texture.
@@ -264,7 +288,7 @@ Start with:
 
 ```text
 Shape: Ribbon
-Width Curve: Taper the start and end
+Width Scale Curve: Taper the start and end
 Length Segments: Increase before adding deformation
 UV Projection: Shape Default
 Shape Default Width UV: Preserve Texel Density
@@ -295,6 +319,8 @@ Cone: Tapered or pointed volume
 
 Set `Arc Degrees` below 360 for an open radial section. Use `Cap Start` and `Cap End` to close the minimum and maximum ends along the Main Axis.
 
+Use `Radius Scale Curve` to shape the volume from Main Axis start to end without adding a modifier.
+
 Useful modifiers include Taper, Twist, Wave, Noise, and Inflate.
 
 </details>
@@ -308,6 +334,7 @@ Start with:
 Shape: Cross Planes
 Plane Count: 2 or more
 Main Axis: Match the effect's vertical direction
+Width Scale Curve: Shape card width from bottom to top
 ```
 
 Use an Axis Gradient in Vertex Colors to store a bottom-to-top mask. Add extra intersecting planes when the effect needs more angular coverage.
@@ -324,7 +351,7 @@ Shape: Helix
 Turns: Number of revolutions
 Pitch: Distance traveled per revolution
 Strip Width: Base ribbon width
-Width Curve: Taper along the spiral
+Width Scale Curve: Taper along the spiral
 ```
 
 Add Twist, Wave, or Noise for secondary motion. Use `Along Length` UVs for scrolling textures.
@@ -337,20 +364,20 @@ Add Twist, Wave, or Noise for secondary motion. Use `Along Length` UVs for scrol
 
 | Shape | Main controls | Typical VFX uses |
 |---|---|---|
-| Quad | Width, length, subdivisions | Sprites, decals, flashes, simple cards |
-| Disc | Radius, edge count, radial resolution | Circular flashes, ground effects, radial masks |
-| Ring | Inner/outer radius, radial resolution, elevation curve | Shockwaves, portals, ground rings |
-| Arc | Ring controls, sweep, width curve origin, elevation, mirrored shell | Slashes, crescents, directional shockwaves |
-| Cone | Height, bottom/top radius, radial and height segments, caps | Spot volumes, directional bursts, funnels |
-| Cylinder | Height, radius, radial and height segments, caps | Beams, columns, volumes |
-| Tube | Height, inner/outer radius, radial and height segments, caps | Hollow beams, tunnels, cylindrical shells |
-| Sphere | Radius, longitude, latitude | Energy fields, bursts, spherical masks |
-| Hemisphere | Radius, longitude, latitude, equator cap | Domes, ground shields, explosion shells |
-| Torus | Major/minor radius, ring/tube segments, sweep | Portals, energy loops, curved bands |
-| Box | Size and X/Y/Z subdivisions | Volumes, distortion regions, box masks |
-| Ribbon | Width, length, width curve, Shape Default width UV mode, subdivisions | Trails, streaks, tapered strips |
-| Cross Planes | Width, height, plane count, subdivisions | Smoke, flame, foliage, volumetric cards |
-| Helix | Radius, strip width, turns, pitch, width curve | Spirals, coils, energy trails |
+| Quad | Width, length, width scale, subdivisions | Sprites, decals, flashes, simple cards |
+| Disc | Radius, sweep, radial distribution/elevation, resolution | Fans, circular flashes, ground effects, radial masks |
+| Ring | Inner/outer radius, radial distribution/elevation, resolution | Shockwaves, portals, ground rings |
+| Arc | Ring controls, sweep, distribution, angular width origin, elevation, mirrored shell | Slashes, crescents, directional shockwaves |
+| Cone | Height, bottom/top radius, radius scale, segments, caps | Spot volumes, directional bursts, funnels |
+| Cylinder | Height, radius scale, radial and height segments, caps | Beams, columns, volumes |
+| Tube | Height, inner/outer radius, radius scale, segments, caps | Hollow beams, tunnels, cylindrical shells |
+| Sphere | Radius, radial profile scale, longitude, latitude | Energy fields, bursts, spherical masks |
+| Hemisphere | Radius, radial profile scale, longitude, latitude, equator cap | Domes, ground shields, explosion shells |
+| Torus | Major/minor radius, tube scale, ring/tube segments, sweep | Portals, energy loops, curved bands |
+| Box | Size, cross-section scale, X/Y/Z subdivisions | Volumes, distortion regions, box masks |
+| Ribbon | Width, length, width scale, Shape Default width UV mode, subdivisions | Trails, streaks, tapered strips |
+| Cross Planes | Width, height, width scale, plane count, subdivisions | Smoke, flame, foliage, volumetric cards |
+| Helix | Radius, strip width, turns, pitch, width scale | Spirals, coils, energy trails |
 
 Every shape also supports:
 
@@ -358,7 +385,7 @@ Every shape also supports:
 - Pivot: `Center`, `Start`, `End`, or `Custom`
 - Resolution controls appropriate to its topology
 
-`Ring` is always a closed 360-degree loop. Use `Arc` when you need a partial sweep or an angular width profile.
+`Ring` is always a closed 360-degree loop. Use `Arc` when you need a partial annular sweep or an angular width profile. Disc supports its own partial sweep for filled fan geometry.
 
 ---
 
@@ -666,6 +693,7 @@ Both options expand topology after the base shape is generated.
 - Imported model sub-assets cannot be updated in place.
 - The tool does not provide manual vertex, edge, face, boolean, skinning, or general-purpose UV-unwrapping workflows.
 - Mirrored Arc output uses two disconnected shells with matching UVs.
+- Radial Vertex Distribution expects a rising 0-to-1 curve; non-monotonic curves can intentionally fold or overlap radial strips.
 - High-resolution output can become expensive, especially with Flat Shading and Double Sided enabled.
 
 ---

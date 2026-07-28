@@ -97,14 +97,15 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 var v = y / (float)lengthSegments;
                 var z = Mathf.Lerp(-length * 0.5f, length * 0.5f, v);
-                var rowWidth = width * EvaluateWidth(shape, v);
+                var widthScale = EvaluateWidth(shape, v);
+                var rowWidth = width * widthScale;
 
                 for (var x = 0; x <= widthSegments; x++)
                 {
                     var u = x / (float)widthSegments;
                     draft.AddVertex(
                         new Vector3(Mathf.Lerp(-rowWidth * 0.5f, rowWidth * 0.5f, u), 0f, z),
-                        new Vector2(u, v));
+                        new Vector2(EvaluateWidthProfileU(shape, u, widthScale), v));
                 }
             }
 
@@ -125,7 +126,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private static void GenerateDisc(VFXShapeSettings shape, VFXMeshDraft draft)
         {
-            GenerateDisc(shape, draft, 360f, false);
+            GenerateDisc(shape, draft, shape.arcDegrees, true);
         }
 
         private static void GenerateDisc(
@@ -153,9 +154,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             for (var ring = 1; ring <= radiusSegments; ring++)
             {
                 var radialT = ring / (float)radiusSegments;
-                var ringRadius = radius * radialT;
+                var distributedT = EvaluateRadialDistribution(shape, radialT);
+                var ringRadius = radius * distributedT;
                 var elevation = applyRadialElevation
-                    ? EvaluateRadialElevation(shape, radialT)
+                    ? EvaluateRadialElevation(shape, distributedT)
                     : 0f;
                 var ringStart = draft.vertices.Count;
 
@@ -167,7 +169,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     var sine = Mathf.Sin(angle);
                     draft.AddVertex(
                         new Vector3(cosine * ringRadius, elevation, sine * ringRadius),
-                        new Vector2(0.5f + cosine * radialT * 0.5f, 0.5f + sine * radialT * 0.5f));
+                        new Vector2(
+                            0.5f + cosine * distributedT * 0.5f,
+                            0.5f + sine * distributedT * 0.5f));
                 }
 
                 if (ring == 1)
@@ -277,8 +281,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             for (var ring = 0; ring <= radiusSegments; ring++)
             {
                 var radialT = ring / (float)radiusSegments;
-                var ringRadius = Mathf.Lerp(innerRadius, outerRadius, radialT);
-                var elevation = EvaluateRadialElevation(shape, radialT);
+                var distributedT = EvaluateRadialDistribution(shape, radialT);
+                var ringRadius = Mathf.Lerp(innerRadius, outerRadius, distributedT);
+                var elevation = EvaluateRadialElevation(shape, distributedT);
 
                 for (var segment = 0; segment <= radialSegments; segment++)
                 {
@@ -289,7 +294,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                             Mathf.Cos(angle) * ringRadius,
                             elevation,
                             Mathf.Sin(angle) * ringRadius),
-                        new Vector2(angularT, radialT));
+                        new Vector2(angularT, distributedT));
                 }
             }
 
@@ -355,7 +360,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 for (var ring = 0; ring <= radiusSegments; ring++)
                 {
                     var radialT = ring / (float)radiusSegments;
-                    var baseRadius = Mathf.Lerp(innerRadius, outerRadius, radialT);
+                    var distributedT = EvaluateRadialDistribution(shape, radialT);
+                    var baseRadius = Mathf.Lerp(
+                        innerRadius,
+                        outerRadius,
+                        distributedT);
                     var ringRadius = Mathf.Lerp(
                         widthOriginRadius,
                         baseRadius,
@@ -364,14 +373,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     // retain one coincident seam for every radial width origin.
                     var elevation = Mathf.Lerp(
                         outerElevation,
-                        EvaluateRadialElevation(shape, radialT),
+                        EvaluateRadialElevation(shape, distributedT),
                         widthFactor);
                     draft.AddVertex(
                         new Vector3(
                             cosine * ringRadius,
                             elevation,
                             sine * ringRadius),
-                        new Vector2(angularT, radialT));
+                        new Vector2(angularT, distributedT));
                 }
             }
 
@@ -845,7 +854,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 var v = latitude / (float)latitudeSegments;
                 var phi = -Mathf.PI * 0.5f + Mathf.PI * v;
                 var y = Mathf.Sin(phi) * radius;
-                var ringRadius = Mathf.Cos(phi) * radius;
+                var ringRadius =
+                    Mathf.Cos(phi) * radius * EvaluateWidth(shape, v);
                 var ringStart = draft.vertices.Count;
 
                 for (var longitude = 0; longitude <= longitudeSegments; longitude++)
@@ -895,7 +905,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 var v = latitude / (float)latitudeSegments;
                 var phi = Mathf.PI * 0.5f * v;
                 var y = Mathf.Sin(phi) * radius;
-                var ringRadius = Mathf.Cos(phi) * radius;
+                var ringRadius =
+                    Mathf.Cos(phi) * radius * EvaluateWidth(shape, v);
                 var ringStart = draft.vertices.Count;
 
                 for (var longitude = 0; longitude <= longitudeSegments; longitude++)
@@ -934,7 +945,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 AddCircleCap(
                     draft,
                     0f,
-                    radius,
+                    radius * EvaluateWidth(shape, 0f),
                     longitudeSegments,
                     angleOffset,
                     Mathf.PI * 2f,
@@ -977,7 +988,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 var theta = angleOffset + arcRadians * u;
                 var radial = new Vector3(Mathf.Cos(theta), 0f, Mathf.Sin(theta));
                 var center = radial * majorRadius;
-                var currentTubeRadius = tubeRadius * EvaluateWidth(shape, u);
+                var profileU =
+                    Mathf.Abs(arcDegrees) >= FullArcThreshold &&
+                    major == majorSegments
+                        ? 0f
+                        : u;
+                var currentTubeRadius =
+                    tubeRadius * EvaluateWidth(shape, profileU);
 
                 for (var tube = 0; tube <= tubeSegments; tube++)
                 {
@@ -1130,6 +1147,19 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 new Vector3(0f, size.y, 0f),
                 xSegments,
                 ySegments);
+
+            for (var vertex = 0; vertex < draft.vertices.Count; vertex++)
+            {
+                var position = draft.vertices[vertex];
+                var heightT = VFXProcessingUtility.Normalize(
+                    position.y,
+                    -half.y,
+                    half.y);
+                var crossSectionScale = EvaluateWidth(shape, heightT);
+                position.x *= crossSectionScale;
+                position.z *= crossSectionScale;
+                draft.vertices[vertex] = position;
+            }
         }
 
         private static void AddBoxFace(
@@ -1201,7 +1231,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     length,
                     widthSegments,
                     lengthSegments,
-                    VFXRibbonUVWidthMode.StretchToWidth);
+                    shape.ribbonUVWidthMode);
             }
         }
 
@@ -1229,9 +1259,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 {
                     var u = column / (float)widthSegments;
                     var across = Mathf.Lerp(-rowWidth * 0.5f, rowWidth * 0.5f, u);
-                    var authoredU = uvWidthMode == VFXRibbonUVWidthMode.StretchToWidth
-                        ? u
-                        : 0.5f + (u - 0.5f) * widthScale;
+                    var authoredU = EvaluateWidthProfileU(
+                        u,
+                        widthScale,
+                        uvWidthMode);
                     draft.AddVertex(
                         widthDirection * across + Vector3.up * y,
                         new Vector2(authoredU, v));
@@ -1283,7 +1314,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 {
                     var u = column / (float)widthSegments;
                     var across = Mathf.Lerp(-rowWidth * 0.5f, rowWidth * 0.5f, u);
-                    draft.AddVertex(center + radial * across, new Vector2(u, v));
+                    draft.AddVertex(
+                        center + radial * across,
+                        new Vector2(
+                            EvaluateWidthProfileU(shape, u, rowWidth / width),
+                            v));
                 }
             }
 
@@ -1431,6 +1466,48 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 ? shape.widthCurve.Evaluate(Mathf.Clamp01(normalizedPosition))
                 : 1f;
             return Mathf.Max(MinimumDimension, Mathf.Abs(Finite(value, 1f)));
+        }
+
+        internal static float EvaluateRadialDistribution(
+            VFXShapeSettings shape,
+            float normalizedRow)
+        {
+            normalizedRow = Mathf.Clamp01(Finite(normalizedRow, 0f));
+            if (normalizedRow <= 0f)
+            {
+                return 0f;
+            }
+
+            if (normalizedRow >= 1f)
+            {
+                return 1f;
+            }
+
+            var value = shape?.radialDistributionCurve != null
+                ? shape.radialDistributionCurve.Evaluate(normalizedRow)
+                : normalizedRow;
+            return Mathf.Clamp01(Finite(value, normalizedRow));
+        }
+
+        private static float EvaluateWidthProfileU(
+            VFXShapeSettings shape,
+            float u,
+            float widthScale)
+        {
+            return EvaluateWidthProfileU(
+                u,
+                widthScale,
+                shape.ribbonUVWidthMode);
+        }
+
+        private static float EvaluateWidthProfileU(
+            float u,
+            float widthScale,
+            VFXRibbonUVWidthMode uvWidthMode)
+        {
+            return uvWidthMode == VFXRibbonUVWidthMode.StretchToWidth
+                ? u
+                : 0.5f + (u - 0.5f) * widthScale;
         }
 
         private static float EvaluateRadialElevation(VFXShapeSettings shape, float normalizedRadius)

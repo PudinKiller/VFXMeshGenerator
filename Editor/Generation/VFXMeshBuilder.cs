@@ -152,8 +152,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                 mesh.SetTriangles(draft.triangles, 0, false);
                 mesh.RecalculateNormals();
+                SmoothUVSplitNormals(draft, mesh, output);
                 SmoothShapeDefaultSphericalPoleNormals(recipe, mesh, output);
-                SmoothClosedRingSeamNormals(recipe, mesh, output);
+                SmoothClosedRadialSeamNormals(recipe, mesh, output);
+                PropagateUVSplitNormals(draft, mesh, output);
 
                 if (output.generateTangents)
                 {
@@ -189,6 +191,172 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 UnityEngine.Object.DestroyImmediate(mesh);
                 throw;
             }
+        }
+
+        private static void SmoothUVSplitNormals(
+            VFXMeshDraft draft,
+            Mesh mesh,
+            VFXMeshOutputSettings output)
+        {
+            if (output.flatShading || draft.uvNormalWeldPairs.Count == 0)
+            {
+                return;
+            }
+
+            var normals = mesh.normals;
+            if (normals.Length == 0)
+            {
+                return;
+            }
+
+            var roots = BuildUVNormalWeldRoots(
+                draft,
+                normals.Length,
+                output.doubleSided);
+            var sums = new Dictionary<int, Vector3>();
+            for (var index = 0; index < roots.Length; index++)
+            {
+                var root = roots[index];
+                if (root == index)
+                {
+                    continue;
+                }
+
+                if (!sums.ContainsKey(root))
+                {
+                    sums.Add(root, normals[root]);
+                }
+
+                sums[root] += normals[index];
+            }
+
+            var smoothedByRoot = new Dictionary<int, Vector3>();
+            foreach (var pair in sums)
+            {
+                if (pair.Value.sqrMagnitude <= 1e-12f)
+                {
+                    continue;
+                }
+
+                smoothedByRoot.Add(pair.Key, pair.Value.normalized);
+            }
+
+            for (var index = 0; index < roots.Length; index++)
+            {
+                if (smoothedByRoot.TryGetValue(
+                        roots[index],
+                        out var smoothed))
+                {
+                    normals[index] = smoothed;
+                }
+            }
+
+            mesh.normals = normals;
+        }
+
+        private static void PropagateUVSplitNormals(
+            VFXMeshDraft draft,
+            Mesh mesh,
+            VFXMeshOutputSettings output)
+        {
+            if (output.flatShading || draft.uvNormalWeldPairs.Count == 0)
+            {
+                return;
+            }
+
+            var normals = mesh.normals;
+            if (normals.Length == 0)
+            {
+                return;
+            }
+
+            var roots = BuildUVNormalWeldRoots(
+                draft,
+                normals.Length,
+                output.doubleSided);
+            for (var index = 0; index < roots.Length; index++)
+            {
+                if (roots[index] != index)
+                {
+                    normals[index] = normals[roots[index]];
+                }
+            }
+
+            mesh.normals = normals;
+        }
+
+        private static int[] BuildUVNormalWeldRoots(
+            VFXMeshDraft draft,
+            int vertexCount,
+            bool doubleSided)
+        {
+            var roots = new int[vertexCount];
+            for (var index = 0; index < roots.Length; index++)
+            {
+                roots[index] = index;
+            }
+
+            var sideVertexCount = doubleSided ? vertexCount / 2 : vertexCount;
+            for (var pairIndex = 0;
+                 pairIndex < draft.uvNormalWeldPairs.Count;
+                 pairIndex++)
+            {
+                var pair = draft.uvNormalWeldPairs[pairIndex];
+                AttachUVNormalWeldRoot(roots, pair.x, pair.y, sideVertexCount);
+                if (doubleSided)
+                {
+                    AttachUVNormalWeldRoot(
+                        roots,
+                        pair.x + sideVertexCount,
+                        pair.y + sideVertexCount,
+                        vertexCount);
+                }
+            }
+
+            for (var index = 0; index < roots.Length; index++)
+            {
+                roots[index] = FindUVNormalWeldRoot(roots, index);
+            }
+
+            return roots;
+        }
+
+        private static void AttachUVNormalWeldRoot(
+            int[] roots,
+            int source,
+            int duplicate,
+            int limit)
+        {
+            if (source < 0 ||
+                duplicate < 0 ||
+                source >= limit ||
+                duplicate >= limit ||
+                source >= roots.Length ||
+                duplicate >= roots.Length)
+            {
+                return;
+            }
+
+            roots[FindUVNormalWeldRoot(roots, duplicate)] =
+                FindUVNormalWeldRoot(roots, source);
+        }
+
+        private static int FindUVNormalWeldRoot(int[] roots, int index)
+        {
+            var root = index;
+            while (roots[root] != root)
+            {
+                root = roots[root];
+            }
+
+            while (roots[index] != index)
+            {
+                var parent = roots[index];
+                roots[index] = root;
+                index = parent;
+            }
+
+            return root;
         }
 
         private static void SmoothShapeDefaultSphericalPoleNormals(
@@ -333,19 +501,27 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
         }
 
-        private static void SmoothClosedRingSeamNormals(
+        private static void SmoothClosedRadialSeamNormals(
             VFXMeshRecipe recipe,
             Mesh mesh,
             VFXMeshOutputSettings output)
         {
             var isRing = recipe.shapeType == VFXMeshShapeType.Ring;
+            var isClosedDisc =
+                recipe.shapeType == VFXMeshShapeType.Disc &&
+                recipe.shape != null &&
+                Mathf.Abs(
+                    Mathf.Abs(VFXShapeGenerator.SanitizeArcDegrees(recipe.shape.arcDegrees)) -
+                    360f) <= 0.001f;
             var isClosedArc =
                 recipe.shapeType == VFXMeshShapeType.Arc &&
                 recipe.shape != null &&
                 Mathf.Abs(
                     Mathf.Abs(VFXShapeGenerator.SanitizeArcDegrees(recipe.shape.arcDegrees)) -
                     360f) <= 0.001f;
-            if (output.flatShading || (!isRing && !isClosedArc) || recipe.shape == null)
+            if (output.flatShading ||
+                (!isRing && !isClosedDisc && !isClosedArc) ||
+                recipe.shape == null)
             {
                 return;
             }
@@ -373,7 +549,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 normals,
                 0,
                 sideVertexCount,
-                variableArcTopology);
+                variableArcTopology,
+                isClosedDisc);
             if (mirrorsArc)
             {
                 SmoothClosedRadialSide(
@@ -382,7 +559,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     normals,
                     mirroredShellOffset,
                     sideVertexCount,
-                    variableArcTopology);
+                    variableArcTopology,
+                    false);
             }
 
             if (output.doubleSided)
@@ -393,7 +571,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     normals,
                     sideVertexCount,
                     vertices.Length,
-                    variableArcTopology);
+                    variableArcTopology,
+                    isClosedDisc);
                 if (mirrorsArc)
                 {
                     SmoothClosedRadialSide(
@@ -402,7 +581,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         normals,
                         sideVertexCount + mirroredShellOffset,
                         vertices.Length,
-                        variableArcTopology);
+                        variableArcTopology,
+                        false);
                 }
             }
 
@@ -453,7 +633,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             Vector3[] normals,
             int vertexOffset,
             int sideEnd,
-            bool variableArcTopology)
+            bool variableArcTopology,
+            bool forceDiscTopology)
         {
             if (variableArcTopology)
             {
@@ -461,7 +642,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 return;
             }
 
-            SmoothRegularRadialSide(shape, vertices, normals, vertexOffset, sideEnd);
+            SmoothRegularRadialSide(
+                shape,
+                vertices,
+                normals,
+                vertexOffset,
+                sideEnd,
+                forceDiscTopology);
         }
 
         private static void SmoothRegularRadialSide(
@@ -469,7 +656,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             Vector3[] vertices,
             Vector3[] normals,
             int vertexOffset,
-            int sideEnd)
+            int sideEnd,
+            bool forceDiscTopology)
         {
             var radialSegments = Mathf.Clamp(
                 shape.radialSegments,
@@ -481,7 +669,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 VFXMeshBuildLimits.MaximumSegmentsPerAxis);
             var stride = radialSegments + 1;
             var innerRadius = shape.innerRadius;
-            var usesDiscTopology =
+            var usesDiscTopology = forceDiscTopology ||
                 float.IsNaN(innerRadius) ||
                 float.IsInfinity(innerRadius) ||
                 Mathf.Abs(innerRadius) < 0.0001f;

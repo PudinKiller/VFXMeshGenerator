@@ -379,6 +379,291 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             }
         }
 
+        [Test]
+        public void PartialDiscGeneratesAnOpenFanAtTheRequestedAngles()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Disc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radius = 1f;
+            recipe.shape.radialSegments = 4;
+            recipe.shape.widthSegments = 1;
+            recipe.shape.arcDegrees = 90f;
+            recipe.shape.angleOffset = 0f;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                Assert.That(result.vertexCount, Is.EqualTo(6));
+                Assert.That(result.triangleCount, Is.EqualTo(4));
+                var vertices = result.mesh.vertices;
+                Assert.That(
+                    Vector3.Distance(vertices[1], new Vector3(1f, 0f, 0f)),
+                    Is.LessThan(1e-5f));
+                Assert.That(
+                    Vector3.Distance(vertices[5], new Vector3(0f, 0f, 1f)),
+                    Is.LessThan(1e-5f));
+                Assert.That(
+                    Vector3.Distance(vertices[1], vertices[5]),
+                    Is.GreaterThan(1f),
+                    "The fan's angular boundaries were incorrectly welded.");
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void DiscRadialDistributionRemapsRadiusElevationAndShapeDefaultUV()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Disc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radius = 2f;
+            recipe.shape.radialSegments = 4;
+            recipe.shape.widthSegments = 4;
+            recipe.shape.arcDegrees = 360f;
+            recipe.shape.radialDistributionCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.5f, 0.8f),
+                new Keyframe(1f, 1f));
+            recipe.shape.radialElevationCurve =
+                AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            recipe.uv.projection = VFXUVProjection.ShapeDefault;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var stride = recipe.shape.radialSegments + 1;
+                var middleRingStart = 1 + stride;
+                var middle = result.mesh.vertices[middleRingStart];
+                var middleUV = result.mesh.uv[middleRingStart];
+
+                Assert.That(RadialDistance(middle), Is.EqualTo(1.6f).Within(1e-5f));
+                Assert.That(middle.y, Is.EqualTo(0.8f).Within(1e-5f));
+                Assert.That(middleUV.x, Is.EqualTo(0.9f).Within(1e-5f));
+                Assert.That(middleUV.y, Is.EqualTo(0.5f).Within(1e-5f));
+                Assert.That(
+                    RadialDistance(result.mesh.vertices[result.mesh.vertexCount - stride]),
+                    Is.EqualTo(recipe.shape.radius).Within(1e-5f),
+                    "The distribution curve moved the fixed outer endpoint.");
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void CurvedFullDiscSmoothsEveryRadialRowSeam()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Disc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radialSegments = 12;
+            recipe.shape.widthSegments = 4;
+            recipe.shape.arcDegrees = 360f;
+            recipe.shape.radialElevationCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.45f, 0.6f),
+                new Keyframe(1f, -0.15f));
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var normals = result.mesh.normals;
+                var stride = recipe.shape.radialSegments + 1;
+                for (var ring = 0; ring < recipe.shape.widthSegments; ring++)
+                {
+                    var first = 1 + ring * stride;
+                    var last = first + recipe.shape.radialSegments;
+                    Assert.That(
+                        Vector3.Distance(normals[first], normals[last]),
+                        Is.LessThan(1e-6f),
+                        $"Disc radial row {ring + 1} has a normal seam.");
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [TestCase(VFXUVProjection.Radial, 360f)]
+        [TestCase(VFXUVProjection.Radial, 225f)]
+        [TestCase(VFXUVProjection.Cylindrical, 360f)]
+        [TestCase(VFXUVProjection.Spherical, 225f)]
+        public void ElevatedDiscAngularProjectionKeepsUVSplitNormalsSmooth(
+            VFXUVProjection projection,
+            float arcDegrees)
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Disc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radius = 1.5f;
+            recipe.shape.radialSegments = 12;
+            recipe.shape.widthSegments = 4;
+            recipe.shape.arcDegrees = arcDegrees;
+            recipe.shape.angleOffset = 137f;
+            recipe.shape.radialElevationCurve = new AnimationCurve(
+                new Keyframe(0f, -0.15f),
+                new Keyframe(0.45f, 0.7f),
+                new Keyframe(1f, 0.1f));
+            recipe.uv.projection = projection;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                Assert.That(
+                    AssertCoincidentNormalGroupsAreSmooth(
+                        result.mesh.vertices,
+                        result.mesh.normals),
+                    Is.GreaterThan(0),
+                    "The projection did not create any coincident UV-only vertices.");
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void SphereRadialProfileScalesRingRadiusWithoutMovingLatitude()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Sphere);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radius = 1f;
+            recipe.shape.longitudeSegments = 4;
+            recipe.shape.latitudeSegments = 4;
+            recipe.shape.widthCurve = new AnimationCurve(
+                new Keyframe(0f, 1f),
+                new Keyframe(0.5f, 0.4f),
+                new Keyframe(1f, 1f));
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var equatorStart = 1 + recipe.shape.longitudeSegments + 1;
+                var equator = result.mesh.vertices[equatorStart];
+                Assert.That(RadialDistance(equator), Is.EqualTo(0.4f).Within(1e-5f));
+                Assert.That(equator.y, Is.EqualTo(0f).Within(1e-5f));
+                Assert.That(result.mesh.vertices[0].y, Is.EqualTo(-1f).Within(1e-5f));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void HemisphereProfileKeepsScaledEquatorCapJoined()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Hemisphere);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radius = 1f;
+            recipe.shape.longitudeSegments = 4;
+            recipe.shape.latitudeSegments = 2;
+            recipe.shape.capEnd = true;
+            recipe.shape.widthCurve = AnimationCurve.Linear(0f, 0.5f, 1f, 1f);
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var sideEquator = result.mesh.vertices[0];
+                var topPoleIndex =
+                    recipe.shape.latitudeSegments *
+                    (recipe.shape.longitudeSegments + 1);
+                var capRingStart = topPoleIndex + 2;
+                var capEquator = result.mesh.vertices[capRingStart];
+
+                Assert.That(RadialDistance(sideEquator), Is.EqualTo(0.5f).Within(1e-5f));
+                Assert.That(
+                    Vector3.Distance(sideEquator, capEquator),
+                    Is.LessThan(1e-6f),
+                    "The scaled Hemisphere side and cap no longer share an equator.");
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void BoxCrossSectionScaleFollowsMainAxisProfile()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Box);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.size = new Vector3(2f, 2f, 2f);
+            recipe.shape.widthSegments = 1;
+            recipe.shape.heightSegments = 2;
+            recipe.shape.lengthSegments = 1;
+            recipe.shape.widthCurve = new AnimationCurve(
+                new Keyframe(0f, 0.5f),
+                new Keyframe(0.5f, 1f),
+                new Keyframe(1f, 0.25f));
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                Assert.That(
+                    MaximumCrossSectionExtentAtY(result.mesh.vertices, -1f),
+                    Is.EqualTo(0.5f).Within(1e-5f));
+                Assert.That(
+                    MaximumCrossSectionExtentAtY(result.mesh.vertices, 0f),
+                    Is.EqualTo(1f).Within(1e-5f));
+                Assert.That(
+                    MaximumCrossSectionExtentAtY(result.mesh.vertices, 1f),
+                    Is.EqualTo(0.25f).Within(1e-5f));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void ClosedTorusScaleCurveKeepsFirstAndLastTubeRingsJoined()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Torus);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.longitudeSegments = 8;
+            recipe.shape.radialSegments = 4;
+            recipe.shape.arcDegrees = 360f;
+            recipe.shape.widthCurve = AnimationCurve.Linear(0f, 0.5f, 1f, 1f);
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var stride = recipe.shape.radialSegments + 1;
+                var lastRing = recipe.shape.longitudeSegments * stride;
+                for (var tube = 0; tube <= recipe.shape.radialSegments; tube++)
+                {
+                    Assert.That(
+                        Vector3.Distance(vertices[tube], vertices[lastRing + tube]),
+                        Is.LessThan(1e-5f),
+                        $"Torus tube vertex {tube} has an open 360-degree scale seam.");
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
         [TestCase(VFXMeshShapeType.Sphere, 7, 14)]
         [TestCase(VFXMeshShapeType.Hemisphere, 4, 4)]
         public void ShapeDefaultSphericalPolesUseIndependentSectorUVs(
@@ -1441,6 +1726,85 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             }
         }
 
+        [TestCase(VFXMeshShapeType.Disc)]
+        [TestCase(VFXMeshShapeType.Ring)]
+        [TestCase(VFXMeshShapeType.Arc)]
+        public void NullAndLinearRadialDistributionPreserveLegacyGeometry(
+            VFXMeshShapeType shapeType)
+        {
+            var nullCurveRecipe = CreateRecipe(shapeType);
+            nullCurveRecipe.shape.pivot = VFXPivot.Custom;
+            nullCurveRecipe.shape.customPivotOffset = Vector3.zero;
+            nullCurveRecipe.shape.radialDistributionCurve = null;
+
+            var linearCurveRecipe = nullCurveRecipe.DeepCopy();
+            linearCurveRecipe.shape.radialDistributionCurve =
+                AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+            var nullCurveResult = VFXMeshBuilder.Build(nullCurveRecipe);
+            var linearCurveResult = VFXMeshBuilder.Build(linearCurveRecipe);
+            try
+            {
+                Assert.That(nullCurveResult.succeeded, Is.True, nullCurveResult.error);
+                Assert.That(linearCurveResult.succeeded, Is.True, linearCurveResult.error);
+                CollectionAssert.AreEqual(
+                    nullCurveResult.mesh.triangles,
+                    linearCurveResult.mesh.triangles);
+
+                var nullVertices = nullCurveResult.mesh.vertices;
+                var linearVertices = linearCurveResult.mesh.vertices;
+                var nullUV = nullCurveResult.mesh.uv;
+                var linearUV = linearCurveResult.mesh.uv;
+                Assert.That(linearVertices, Has.Length.EqualTo(nullVertices.Length));
+                for (var vertex = 0; vertex < nullVertices.Length; vertex++)
+                {
+                    Assert.That(
+                        Vector3.Distance(nullVertices[vertex], linearVertices[vertex]),
+                        Is.LessThan(1e-6f));
+                    Assert.That(
+                        Vector2.Distance(nullUV[vertex], linearUV[vertex]),
+                        Is.LessThan(1e-6f));
+                }
+            }
+            finally
+            {
+                DestroyResult(nullCurveResult);
+                DestroyResult(linearCurveResult);
+            }
+        }
+
+        [Test]
+        public void VariableWidthArcUsesDistributedRadialRows()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.2f;
+            recipe.shape.radius = 1f;
+            recipe.shape.radialSegments = 8;
+            recipe.shape.widthSegments = 2;
+            recipe.shape.arcWidthOrigin = VFXArcWidthOrigin.OuterRim;
+            recipe.shape.arcWidthCurve = AnimationCurve.Linear(0f, 0.5f, 1f, 0.5f);
+            recipe.shape.radialDistributionCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.5f, 0.8f),
+                new Keyframe(1f, 1f));
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                Assert.That(
+                    RadialDistance(result.mesh.vertices[1]),
+                    Is.EqualTo(0.92f).Within(1e-5f));
+                Assert.That(result.mesh.uv[1].y, Is.EqualTo(0.8f).Within(1e-5f));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
         [Test]
         public void ZeroInnerRadiusRingElevatesFromCenterToOuterEdge()
         {
@@ -1501,6 +1865,23 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             Assert.That(copy.shape.radialElevationCurve.Evaluate(0f), Is.EqualTo(0.2f).Within(1e-5f));
             Assert.That(copy.shape.radialElevationCurve.Evaluate(0.45f), Is.EqualTo(1.1f).Within(1e-5f));
             Assert.That(copy.shape.radialElevationCurve.Evaluate(1f), Is.EqualTo(-0.3f).Within(1e-5f));
+        }
+
+        [Test]
+        public void DeepCopyPreservesRadialDistributionCurve()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Disc);
+            recipe.shape.radialDistributionCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.35f, 0.72f),
+                new Keyframe(1f, 1f));
+
+            var copy = recipe.DeepCopy();
+
+            Assert.That(copy.shape.radialDistributionCurve, Is.Not.Null);
+            Assert.That(
+                copy.shape.radialDistributionCurve.Evaluate(0.35f),
+                Is.EqualTo(0.72f).Within(1e-5f));
         }
 
         [Test]
@@ -1720,6 +2101,95 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
+        public void ResetCurrentShapeProfilePreservesOtherProfilesAndRecipeSettings()
+        {
+            var windowType = typeof(VFXMeshGeneratorWindow);
+            var switchShape = windowType.GetMethod(
+                "SwitchShape",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var resetShape = windowType.GetMethod(
+                "ResetCurrentShapeProfile",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var recipeField = windowType.GetField(
+                "recipe",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var shapeSettingsField = windowType.GetField(
+                "shapeSettingsByType",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var persistentStateKeyField = windowType.GetField(
+                "persistentStateKey",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(switchShape, Is.Not.Null);
+            Assert.That(resetShape, Is.Not.Null);
+            Assert.That(recipeField, Is.Not.Null);
+            Assert.That(shapeSettingsField, Is.Not.Null);
+            Assert.That(persistentStateKeyField, Is.Not.Null);
+
+            VFXMeshGeneratorWindow window = null;
+            try
+            {
+                window = ScriptableObject.CreateInstance<VFXMeshGeneratorWindow>();
+                persistentStateKeyField.SetValue(
+                    window,
+                    "com.pudinkiller.vfx-mesh-generator.reset-test." +
+                    Guid.NewGuid().ToString("N"));
+                var recipe = new VFXMeshRecipe
+                {
+                    meshName = "Keep Recipe Settings"
+                };
+                recipe.modifiers.Add(new VFXMeshModifierSettings());
+                recipe.uv.scale = new Vector2(2f, 3f);
+                recipe.output.doubleSided = true;
+                recipeField.SetValue(window, recipe);
+                shapeSettingsField.SetValue(
+                    window,
+                    Activator.CreateInstance(shapeSettingsField.FieldType));
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
+                recipe.shape.radius = 2.4f;
+                recipe.shape.height = 3.2f;
+                recipe.shape.widthCurve =
+                    AnimationCurve.Linear(0f, 0.4f, 1f, 1.3f);
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Arc });
+                recipe.shape.radius = 4f;
+                recipe.shape.arcDegrees = 73f;
+                recipe.shape.mirrorArcAcrossShapePlane = true;
+                recipe.shape.radialDistributionCurve =
+                    AnimationCurve.Linear(0f, 0.8f, 1f, 0.2f);
+
+                resetShape.Invoke(window, null);
+
+                Assert.That(recipe.shapeType, Is.EqualTo(VFXMeshShapeType.Arc));
+                Assert.That(recipe.shape.radius, Is.EqualTo(0.5f));
+                Assert.That(recipe.shape.arcDegrees, Is.EqualTo(180f));
+                Assert.That(recipe.shape.mirrorArcAcrossShapePlane, Is.False);
+                Assert.That(
+                    recipe.shape.radialDistributionCurve.Evaluate(0.5f),
+                    Is.EqualTo(0.5f).Within(1e-5f));
+                Assert.That(recipe.meshName, Is.EqualTo("Keep Recipe Settings"));
+                Assert.That(recipe.modifiers, Has.Count.EqualTo(1));
+                Assert.That(recipe.uv.scale, Is.EqualTo(new Vector2(2f, 3f)));
+                Assert.That(recipe.output.doubleSided, Is.True);
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
+                Assert.That(recipe.shape.radius, Is.EqualTo(2.4f));
+                Assert.That(recipe.shape.height, Is.EqualTo(3.2f));
+                Assert.That(
+                    recipe.shape.widthCurve.Evaluate(0f),
+                    Is.EqualTo(0.4f).Within(1e-5f));
+            }
+            finally
+            {
+                if (window != null)
+                {
+                    persistentStateKeyField.SetValue(window, null);
+                    UnityEngine.Object.DestroyImmediate(window);
+                }
+            }
+        }
+
+        [Test]
         public void WindowPersistsIndependentShapeSettingsAndAdoptsOnlyPresetShape()
         {
             var windowType = typeof(VFXMeshGeneratorWindow);
@@ -1921,6 +2391,73 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         private static float RadialDistance(Vector3 position)
         {
             return new Vector2(position.x, position.z).magnitude;
+        }
+
+        private static int AssertCoincidentNormalGroupsAreSmooth(
+            IReadOnlyList<Vector3> vertices,
+            IReadOnlyList<Vector3> normals)
+        {
+            Assert.That(normals.Count, Is.EqualTo(vertices.Count));
+            var assigned = new bool[vertices.Count];
+            var duplicateGroupCount = 0;
+            for (var first = 0; first < vertices.Count; first++)
+            {
+                if (assigned[first])
+                {
+                    continue;
+                }
+
+                assigned[first] = true;
+                var duplicateCount = 0;
+                for (var candidate = first + 1;
+                     candidate < vertices.Count;
+                     candidate++)
+                {
+                    if (assigned[candidate] ||
+                        Vector3.Distance(
+                            vertices[first],
+                            vertices[candidate]) > 1e-6f)
+                    {
+                        continue;
+                    }
+
+                    assigned[candidate] = true;
+                    duplicateCount++;
+                    Assert.That(
+                        Vector3.Distance(normals[first], normals[candidate]),
+                        Is.LessThan(1e-5f),
+                        $"Coincident vertices {first} and {candidate} have a normal seam.");
+                }
+
+                if (duplicateCount > 0)
+                {
+                    duplicateGroupCount++;
+                }
+            }
+
+            return duplicateGroupCount;
+        }
+
+        private static float MaximumCrossSectionExtentAtY(
+            IReadOnlyList<Vector3> vertices,
+            float y)
+        {
+            var maximum = float.NegativeInfinity;
+            for (var vertex = 0; vertex < vertices.Count; vertex++)
+            {
+                if (Mathf.Abs(vertices[vertex].y - y) > 1e-5f)
+                {
+                    continue;
+                }
+
+                maximum = Mathf.Max(
+                    maximum,
+                    Mathf.Max(
+                        Mathf.Abs(vertices[vertex].x),
+                        Mathf.Abs(vertices[vertex].z)));
+            }
+
+            return maximum;
         }
 
         private static Vector3 ReflectAcrossXZ(Vector3 value)

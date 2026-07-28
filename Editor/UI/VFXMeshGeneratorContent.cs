@@ -19,7 +19,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             "Name stored on the generated Mesh and used as the default asset and preset name.");
         public static readonly GUIContent Shape = Create(
             "Shape",
-            "Select the base topology generated before modifiers. Ring is always a closed 360-degree loop; Arc exposes sweep and width-profile controls.");
+            "Select the base topology generated before modifiers. Disc supports filled fan sweeps, Ring is always closed, and Arc exposes partial annular width-profile controls.");
+        public static readonly GUIContent ResetShapeProfile = Create(
+            "Reset",
+            "Restore only the selected shape's base settings. Other shape profiles, modifiers, UVs, vertex data, output settings, and mesh name are preserved.");
 
         public static readonly GUIContent WidthSegments = Segments(
             "Width Segments",
@@ -73,6 +76,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public static readonly GUIContent ArcDegrees = Create(
             "Arc Degrees",
             "Angular sweep in degrees. Arc is partial by design; use Ring for a closed 360-degree loop.");
+        public static readonly GUIContent DiscArcDegrees = Create(
+            "Arc Degrees",
+            "Angular sweep in degrees. Values below 360 create an open fan.");
         public static readonly GUIContent VolumeArcDegrees = Create(
             "Arc Degrees",
             "Angular sweep in degrees. Values below 360 create an open radial volume.");
@@ -82,6 +88,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public static readonly GUIContent AxialElevationCurve = Create(
             "Axial Elevation Curve",
             "Curve time runs from inner edge or center (0) to outer edge (1). Values displace along Main Axis.");
+        public static readonly GUIContent RadialVertexDistribution = Create(
+            "Radial Vertex Distribution",
+            "Input is the evenly spaced radial row index; output is normalized center or inner-to-outer position. Use a rising curve from 0 to 1. Above the diagonal packs rows near the outer rim; below it packs rows near the inner rim. Endpoints stay fixed.");
         public static readonly GUIContent ArcWidthCurve = Create(
             "Angular Width Curve",
             "Curve time runs from arc start (0) to end (1). Values from 0 to 1 scale radial thickness around the selected Radial Width Origin.");
@@ -92,11 +101,23 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             "Mirror Across Shape Plane",
             "Add a disconnected second Arc shell reflected across the plane perpendicular to Main Axis. The generated shells are aligned at the outer rim, keep identical UVs so texture scrolling moves in the same direction, and are then modified independently. This is different from Double Sided.");
         public static readonly GUIContent WidthCurve = Create(
-            "Width Curve",
-            "Curve time runs from shape start (0) to end (1). Values multiply local width.");
+            "Width Scale Curve",
+            "Curve time runs from shape start (0) to end (1). Values multiply local strip or card width.");
+        public static readonly GUIContent RadiusScaleCurve = Create(
+            "Radius Scale Curve",
+            "Curve time runs from Main Axis start (0) to end (1). Values multiply the local radius while preserving the base cone, cylinder, or tube profile.");
+        public static readonly GUIContent RadialProfileScaleCurve = Create(
+            "Radial Profile Scale",
+            "Values multiply cross-sectional radius without changing axial position. Sphere time runs bottom to top; Hemisphere time runs equator to pole.");
+        public static readonly GUIContent TubeScaleCurve = Create(
+            "Tube Scale Curve",
+            "Curve time runs from torus sweep start (0) to end (1). Values multiply the minor radius. Match curve endpoints for a smooth closed torus.");
+        public static readonly GUIContent CrossSectionScaleCurve = Create(
+            "Cross-Section Scale Curve",
+            "Curve time runs from Main Axis start (0) to end (1). Values multiply the box dimensions perpendicular to Main Axis.");
         public static readonly GUIContent RibbonUVWidthMode = Create(
             "Shape Default Width UV",
-            "Preserve Texel Density makes U follow local mesh width, eliminating diagonal checker kinks on tapered ribbons. Stretch To Width keeps every row at U 0-1, but low-resolution tapers can show triangle interpolation.");
+            "Preserve Texel Density makes U follow local strip or card width, eliminating diagonal checker kinks on tapered profiles. Stretch To Width keeps every row at U 0-1, but low-resolution tapers can show triangle interpolation.");
         public static readonly GUIContent PlaneCount = Create(
             "Plane Count",
             "Number of intersecting cards distributed evenly around Main Axis.");
