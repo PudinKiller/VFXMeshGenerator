@@ -35,6 +35,19 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         Custom
     }
 
+    public enum VFXArcWidthOrigin
+    {
+        OuterRim = 0,
+        Middle = 1,
+        InnerRim = 2
+    }
+
+    public enum VFXRibbonUVWidthMode
+    {
+        PreserveTexelDensity = 0,
+        StretchToWidth = 1
+    }
+
     public enum VFXModifierType
     {
         Transform,

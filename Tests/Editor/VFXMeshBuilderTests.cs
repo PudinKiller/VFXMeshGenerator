@@ -539,6 +539,88 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
+        public void TaperedRibbonPreserveTexelDensityUsesAffineShapeDefaultUVs()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Ribbon);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.width = 2f;
+            recipe.shape.length = 4f;
+            recipe.shape.widthSegments = 1;
+            recipe.shape.lengthSegments = 8;
+            recipe.shape.ribbonUVWidthMode = VFXRibbonUVWidthMode.PreserveTexelDensity;
+            recipe.shape.widthCurve = new AnimationCurve(
+                new Keyframe(0f, 0.08f),
+                new Keyframe(0.25f, 0.2f),
+                new Keyframe(0.65f, 0.55f),
+                new Keyframe(1f, 1f));
+            recipe.uv.projection = VFXUVProjection.ShapeDefault;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var uv = result.mesh.uv;
+                Assert.That(uv, Has.Length.EqualTo(vertices.Length));
+
+                for (var vertex = 0; vertex < vertices.Length; vertex++)
+                {
+                    Assert.That(
+                        uv[vertex].x,
+                        Is.EqualTo(vertices[vertex].x / recipe.shape.width + 0.5f)
+                            .Within(1e-5f),
+                        $"Vertex {vertex} does not share the ribbon's affine U mapping.");
+                    Assert.That(
+                        uv[vertex].y,
+                        Is.EqualTo(vertices[vertex].y / recipe.shape.length + 0.5f)
+                            .Within(1e-5f),
+                        $"Vertex {vertex} does not share the ribbon's affine V mapping.");
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void TaperedRibbonStretchToWidthPreservesLegacyRowRange()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Ribbon);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.widthSegments = 2;
+            recipe.shape.lengthSegments = 8;
+            recipe.shape.ribbonUVWidthMode = VFXRibbonUVWidthMode.StretchToWidth;
+            recipe.shape.widthCurve = AnimationCurve.Linear(0f, 0.1f, 1f, 1f);
+            recipe.uv.projection = VFXUVProjection.ShapeDefault;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var uv = result.mesh.uv;
+                var stride = recipe.shape.widthSegments + 1;
+                for (var row = 0; row <= recipe.shape.lengthSegments; row++)
+                {
+                    var rowStart = row * stride;
+                    Assert.That(uv[rowStart].x, Is.EqualTo(0f).Within(1e-6f));
+                    Assert.That(
+                        uv[rowStart + recipe.shape.widthSegments].x,
+                        Is.EqualTo(1f).Within(1e-6f));
+                    Assert.That(
+                        uv[rowStart].y,
+                        Is.EqualTo(row / (float)recipe.shape.lengthSegments).Within(1e-6f));
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
         public void SphericalPoleSmoothingDoesNotMergeFlattenedHemisphereCap()
         {
             const int longitudeSegments = 4;
@@ -837,17 +919,21 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 var mirroredUV = mirroredResult.mesh.uv;
                 var mirroredTriangles = mirroredResult.mesh.triangles;
                 var shellVertexCount = sourceVertices.Length;
+                var outerElevation =
+                    sourceRecipe.shape.radialElevationCurve.Evaluate(1f);
 
                 for (var vertex = 0; vertex < shellVertexCount; vertex++)
                 {
+                    var alignedSourceVertex =
+                        sourceVertices[vertex] - Vector3.up * outerElevation;
                     Assert.That(
-                        Vector3.Distance(mirroredVertices[vertex], sourceVertices[vertex]),
+                        Vector3.Distance(mirroredVertices[vertex], alignedSourceVertex),
                         Is.LessThan(1e-6f),
-                        $"Source-shell vertex {vertex} changed when mirroring was enabled.");
+                        $"Source-shell vertex {vertex} was not aligned to its outer rim.");
                     Assert.That(
                         Vector3.Distance(
                             mirroredVertices[shellVertexCount + vertex],
-                            ReflectAcrossXZ(sourceVertices[vertex])),
+                            ReflectAcrossXZ(alignedSourceVertex)),
                         Is.LessThan(1e-6f),
                         $"Mirrored vertex {vertex} was not reflected across Y=0.");
                     Assert.That(
@@ -988,6 +1074,147 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                         Vector3.Distance(vertices[sourceInner], vertices[mirroredInner]),
                         Is.GreaterThan(1e-4f),
                         $"Inner pair {segment} lost the intended mirrored volume.");
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [TestCase(VFXArcWidthOrigin.OuterRim, 0.6f, 1f)]
+        [TestCase(VFXArcWidthOrigin.Middle, 0.4f, 0.8f)]
+        [TestCase(VFXArcWidthOrigin.InnerRim, 0.2f, 0.6f)]
+        public void ArcWidthOriginControlsTheScaledRadialInterval(
+            VFXArcWidthOrigin origin,
+            float expectedInnerRadius,
+            float expectedOuterRadius)
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.2f;
+            recipe.shape.radius = 1f;
+            recipe.shape.radialSegments = 8;
+            recipe.shape.widthSegments = 2;
+            recipe.shape.arcDegrees = 160f;
+            recipe.shape.arcWidthOrigin = origin;
+            recipe.shape.arcWidthCurve = AnimationCurve.Linear(0f, 0.5f, 1f, 0.5f);
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                Assert.That(
+                    RadialDistance(vertices[0]),
+                    Is.EqualTo(expectedInnerRadius).Within(1e-5f));
+                Assert.That(
+                    RadialDistance(vertices[recipe.shape.widthSegments]),
+                    Is.EqualTo(expectedOuterRadius).Within(1e-5f));
+                Assert.That(
+                    expectedOuterRadius - expectedInnerRadius,
+                    Is.EqualTo(
+                        (recipe.shape.radius - recipe.shape.innerRadius) * 0.5f)
+                        .Within(1e-6f));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [TestCase(VFXArcWidthOrigin.OuterRim, 1f)]
+        [TestCase(VFXArcWidthOrigin.Middle, 0.6f)]
+        [TestCase(VFXArcWidthOrigin.InnerRim, 0.2f)]
+        public void CollapsedArcTipUsesTheSelectedWidthOrigin(
+            VFXArcWidthOrigin origin,
+            float expectedRadius)
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.2f;
+            recipe.shape.radius = 1f;
+            recipe.shape.radialSegments = 8;
+            recipe.shape.widthSegments = 2;
+            recipe.shape.arcDegrees = 160f;
+            recipe.shape.arcWidthOrigin = origin;
+            recipe.shape.arcWidthCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.5f, 1f),
+                new Keyframe(1f, 0f));
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                Assert.That(
+                    RadialDistance(result.mesh.vertices[0]),
+                    Is.EqualTo(expectedRadius).Within(1e-5f));
+                Assert.That(
+                    result.validationFlags & VFXMeshValidationFlags.DegenerateTriangle,
+                    Is.EqualTo(VFXMeshValidationFlags.None));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [TestCase(VFXArcWidthOrigin.OuterRim)]
+        [TestCase(VFXArcWidthOrigin.Middle)]
+        [TestCase(VFXArcWidthOrigin.InnerRim)]
+        public void MirroredArcOriginsKeepOuterRimJoinedWithNonzeroOuterElevation(
+            VFXArcWidthOrigin origin)
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.2f;
+            recipe.shape.radius = 1f;
+            recipe.shape.radialSegments = 8;
+            recipe.shape.widthSegments = 3;
+            recipe.shape.arcDegrees = 160f;
+            recipe.shape.arcWidthOrigin = origin;
+            recipe.shape.arcWidthCurve = AnimationCurve.Linear(0f, 0.5f, 1f, 0.5f);
+            recipe.shape.radialElevationCurve = AnimationCurve.Linear(0f, 0.6f, 1f, 0.25f);
+            recipe.shape.mirrorArcAcrossShapePlane = true;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var columnStride = recipe.shape.widthSegments + 1;
+                var shellVertexCount =
+                    (recipe.shape.radialSegments + 1) * columnStride;
+                Assert.That(vertices, Has.Length.EqualTo(shellVertexCount * 2));
+
+                for (var segment = 0; segment <= recipe.shape.radialSegments; segment++)
+                {
+                    var sourceInner = segment * columnStride;
+                    var sourceOuter = sourceInner + recipe.shape.widthSegments;
+                    var mirroredInner = shellVertexCount + sourceInner;
+                    var mirroredOuter = shellVertexCount + sourceOuter;
+
+                    Assert.That(vertices[sourceOuter].y, Is.EqualTo(0f).Within(1e-6f));
+                    Assert.That(
+                        vertices[sourceInner].y,
+                        Is.EqualTo(0.175f).Within(1e-6f),
+                        $"Origin {origin} changed the outer-anchored elevation profile.");
+                    Assert.That(
+                        Vector3.Distance(vertices[sourceOuter], vertices[mirroredOuter]),
+                        Is.LessThan(1e-6f),
+                        $"Origin {origin}, outer-rim pair {segment} is split.");
+                    Assert.That(
+                        vertices[mirroredInner].y,
+                        Is.EqualTo(-vertices[sourceInner].y).Within(1e-6f));
+                    Assert.That(
+                        Vector2.Distance(
+                            result.mesh.uv[sourceInner],
+                            result.mesh.uv[mirroredInner]),
+                        Is.LessThan(1e-6f));
                 }
             }
             finally
@@ -1306,6 +1533,35 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
+        public void ShapeSpecificUVAndArcOriginDefaultsRemainBackwardCompatible()
+        {
+            var settings = new VFXShapeSettings();
+
+            Assert.That((int)VFXArcWidthOrigin.OuterRim, Is.EqualTo(0));
+            Assert.That((int)VFXArcWidthOrigin.Middle, Is.EqualTo(1));
+            Assert.That((int)VFXArcWidthOrigin.InnerRim, Is.EqualTo(2));
+            Assert.That(settings.arcWidthOrigin, Is.EqualTo(VFXArcWidthOrigin.OuterRim));
+            Assert.That(
+                settings.ribbonUVWidthMode,
+                Is.EqualTo(VFXRibbonUVWidthMode.PreserveTexelDensity));
+        }
+
+        [Test]
+        public void DeepCopyPreservesArcWidthOriginAndRibbonUVWidthMode()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.arcWidthOrigin = VFXArcWidthOrigin.InnerRim;
+            recipe.shape.ribbonUVWidthMode = VFXRibbonUVWidthMode.StretchToWidth;
+
+            var copy = recipe.DeepCopy();
+
+            Assert.That(copy.shape.arcWidthOrigin, Is.EqualTo(VFXArcWidthOrigin.InnerRim));
+            Assert.That(
+                copy.shape.ribbonUVWidthMode,
+                Is.EqualTo(VFXRibbonUVWidthMode.StretchToWidth));
+        }
+
+        [Test]
         public void PreviewModeNumericValuesRemainStable()
         {
             Assert.That((int)VFXPreviewMode.Shaded, Is.EqualTo(0));
@@ -1529,6 +1785,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 activeRecipe.shape.arcDegrees = 137f;
                 activeRecipe.shape.radius = 1.7f;
                 activeRecipe.shape.capEnd = false;
+                activeRecipe.shape.arcWidthOrigin = VFXArcWidthOrigin.Middle;
 
                 switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
                 Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(360f));
@@ -1541,6 +1798,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(137f));
                 Assert.That(activeRecipe.shape.radius, Is.EqualTo(1.7f));
                 Assert.That(activeRecipe.shape.capEnd, Is.False);
+                Assert.That(
+                    activeRecipe.shape.arcWidthOrigin,
+                    Is.EqualTo(VFXArcWidthOrigin.Middle));
 
                 switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
                 Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(271f));
@@ -1552,7 +1812,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                     shape = new VFXShapeSettings
                     {
                         arcDegrees = 212f,
-                        radius = 3.6f
+                        radius = 3.6f,
+                        arcWidthOrigin = VFXArcWidthOrigin.InnerRim
                     }
                 };
                 adoptRecipe.Invoke(window, new object[] { arcPresetRecipe });
@@ -1560,6 +1821,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 Assert.That(activeRecipe.shapeType, Is.EqualTo(VFXMeshShapeType.Arc));
                 Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(212f));
                 Assert.That(activeRecipe.shape.radius, Is.EqualTo(3.6f));
+                Assert.That(
+                    activeRecipe.shape.arcWidthOrigin,
+                    Is.EqualTo(VFXArcWidthOrigin.InnerRim));
 
                 switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
                 Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(271f));
@@ -1580,6 +1844,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 switchShape.Invoke(window, new object[] { VFXMeshShapeType.Arc });
                 Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(212f));
                 Assert.That(activeRecipe.shape.radius, Is.EqualTo(3.6f));
+                Assert.That(
+                    activeRecipe.shape.arcWidthOrigin,
+                    Is.EqualTo(VFXArcWidthOrigin.InnerRim));
             }
             finally
             {

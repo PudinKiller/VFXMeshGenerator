@@ -84,13 +84,19 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             "Curve time runs from inner edge or center (0) to outer edge (1). Values displace along Main Axis.");
         public static readonly GUIContent ArcWidthCurve = Create(
             "Angular Width Curve",
-            "Curve time runs from arc start (0) to end (1). Values from 0 to 1 scale radial thickness inward while keeping the outer rim anchored; use zero at an endpoint for a pointed outer-rim slash tip.");
+            "Curve time runs from arc start (0) to end (1). Values from 0 to 1 scale radial thickness around the selected Radial Width Origin.");
+        public static readonly GUIContent ArcWidthOrigin = Create(
+            "Radial Width Origin",
+            "Radial pivot used when Angular Width Curve scales annulus thickness. Outer Rim keeps the outer radius fixed, Middle moves both radii evenly, and Inner Rim keeps the inner radius fixed. Axial elevation remains referenced to the outer rim so mirrored shells stay joined.");
         public static readonly GUIContent MirrorArcAcrossShapePlane = Create(
             "Mirror Across Shape Plane",
-            "Add a disconnected second Arc shell reflected across the plane perpendicular to Main Axis. With Main Axis Y this is the XZ plane. Both shells keep identical UVs so texture scrolling moves in the same direction, then modifiers affect each shell independently. This is different from Double Sided.");
+            "Add a disconnected second Arc shell reflected across the plane perpendicular to Main Axis. The generated shells are aligned at the outer rim, keep identical UVs so texture scrolling moves in the same direction, and are then modified independently. This is different from Double Sided.");
         public static readonly GUIContent WidthCurve = Create(
             "Width Curve",
             "Curve time runs from shape start (0) to end (1). Values multiply local width.");
+        public static readonly GUIContent RibbonUVWidthMode = Create(
+            "Shape Default Width UV",
+            "Preserve Texel Density makes U follow local mesh width, eliminating diagonal checker kinks on tapered ribbons. Stretch To Width keeps every row at U 0-1, but low-resolution tapers can show triangle interpolation.");
         public static readonly GUIContent PlaneCount = Create(
             "Plane Count",
             "Number of intersecting cards distributed evenly around Main Axis.");

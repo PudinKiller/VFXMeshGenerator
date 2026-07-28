@@ -351,6 +351,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     settings.arcWidthCurve = EditorGUILayout.CurveField(
                         VFXMeshGeneratorContent.ArcWidthCurve,
                         settings.arcWidthCurve);
+                    settings.arcWidthOrigin = (VFXArcWidthOrigin)EditorGUILayout.EnumPopup(
+                        VFXMeshGeneratorContent.ArcWidthOrigin,
+                        settings.arcWidthOrigin);
                     settings.mirrorArcAcrossShapePlane = EditorGUILayout.Toggle(
                         VFXMeshGeneratorContent.MirrorArcAcrossShapePlane,
                         settings.mirrorArcAcrossShapePlane);
@@ -475,6 +478,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     settings.widthCurve = EditorGUILayout.CurveField(
                         VFXMeshGeneratorContent.WidthCurve,
                         settings.widthCurve);
+                    settings.ribbonUVWidthMode =
+                        (VFXRibbonUVWidthMode)EditorGUILayout.EnumPopup(
+                            VFXMeshGeneratorContent.RibbonUVWidthMode,
+                            settings.ribbonUVWidthMode);
                     break;
 
                 case VFXMeshShapeType.CrossPlanes:

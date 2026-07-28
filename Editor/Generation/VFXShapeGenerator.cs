@@ -42,6 +42,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     GenerateArc(shape, draft);
                     if (shape.mirrorArcAcrossShapePlane)
                     {
+                        AlignMirroredArcOuterRimToShapePlane(shape, draft);
                         AppendMirroredArcShell(draft);
                     }
                     break;
@@ -232,6 +233,19 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
         }
 
+        private static void AlignMirroredArcOuterRimToShapePlane(
+            VFXShapeSettings shape,
+            VFXMeshDraft draft)
+        {
+            var outerElevation = EvaluateRadialElevation(shape, 1f);
+            for (var vertex = 0; vertex < draft.vertices.Count; vertex++)
+            {
+                var position = draft.vertices[vertex];
+                position.y -= outerElevation;
+                draft.vertices[vertex] = position;
+            }
+        }
+
         private static void GenerateRing(
             VFXShapeSettings shape,
             VFXMeshDraft draft,
@@ -307,6 +321,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
             innerRadius = Mathf.Max(MinimumDimension, innerRadius);
             var outerElevation = EvaluateRadialElevation(shape, 1f);
+            var widthOriginRadius = Mathf.Lerp(
+                innerRadius,
+                outerRadius,
+                ArcWidthOrigin01(shape.arcWidthOrigin));
             var arcRadians = Degrees(SanitizeArcDegrees(shape.arcDegrees));
             var angleOffset = Degrees(shape.angleOffset);
             var positiveWinding = arcRadians >= 0f;
@@ -327,9 +345,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 {
                     draft.AddVertex(
                         new Vector3(
-                            cosine * outerRadius,
+                            cosine * widthOriginRadius,
                             outerElevation,
-                            sine * outerRadius),
+                            sine * widthOriginRadius),
                         new Vector2(angularT, 0.5f));
                     continue;
                 }
@@ -338,7 +356,12 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 {
                     var radialT = ring / (float)radiusSegments;
                     var baseRadius = Mathf.Lerp(innerRadius, outerRadius, radialT);
-                    var ringRadius = Mathf.Lerp(outerRadius, baseRadius, widthFactor);
+                    var ringRadius = Mathf.Lerp(
+                        widthOriginRadius,
+                        baseRadius,
+                        widthFactor);
+                    // Elevation remains outer-rim anchored so mirrored shells
+                    // retain one coincident seam for every radial width origin.
                     var elevation = Mathf.Lerp(
                         outerElevation,
                         EvaluateRadialElevation(shape, radialT),
@@ -1153,7 +1176,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 Positive(shape.width),
                 Positive(shape.length),
                 Segments(shape.widthSegments, 1),
-                Segments(shape.lengthSegments, 1));
+                Segments(shape.lengthSegments, 1),
+                shape.ribbonUVWidthMode);
         }
 
         private static void GenerateCrossPlanes(VFXShapeSettings shape, VFXMeshDraft draft)
@@ -1176,7 +1200,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     width,
                     length,
                     widthSegments,
-                    lengthSegments);
+                    lengthSegments,
+                    VFXRibbonUVWidthMode.StretchToWidth);
             }
         }
 
@@ -1187,7 +1212,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             float width,
             float length,
             int widthSegments,
-            int lengthSegments)
+            int lengthSegments,
+            VFXRibbonUVWidthMode uvWidthMode)
         {
             var start = draft.vertices.Count;
             var stride = widthSegments + 1;
@@ -1196,13 +1222,19 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 var v = row / (float)lengthSegments;
                 var y = Mathf.Lerp(-length * 0.5f, length * 0.5f, v);
-                var rowWidth = width * EvaluateWidth(shape, v);
+                var widthScale = EvaluateWidth(shape, v);
+                var rowWidth = width * widthScale;
 
                 for (var column = 0; column <= widthSegments; column++)
                 {
                     var u = column / (float)widthSegments;
                     var across = Mathf.Lerp(-rowWidth * 0.5f, rowWidth * 0.5f, u);
-                    draft.AddVertex(widthDirection * across + Vector3.up * y, new Vector2(u, v));
+                    var authoredU = uvWidthMode == VFXRibbonUVWidthMode.StretchToWidth
+                        ? u
+                        : 0.5f + (u - 0.5f) * widthScale;
+                    draft.AddVertex(
+                        widthDirection * across + Vector3.up * y,
+                        new Vector2(authoredU, v));
                 }
             }
 
@@ -1415,6 +1447,20 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 ? shape.arcWidthCurve.Evaluate(Mathf.Clamp01(normalizedAngle))
                 : 1f;
             return Mathf.Clamp01(Finite(value, 1f));
+        }
+
+        private static float ArcWidthOrigin01(VFXArcWidthOrigin origin)
+        {
+            switch (origin)
+            {
+                case VFXArcWidthOrigin.Middle:
+                    return 0.5f;
+                case VFXArcWidthOrigin.InnerRim:
+                    return 0f;
+                case VFXArcWidthOrigin.OuterRim:
+                default:
+                    return 1f;
+            }
         }
 
         private static float Positive(float value)

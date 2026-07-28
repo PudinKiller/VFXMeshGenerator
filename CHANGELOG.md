@@ -2,6 +2,18 @@
 
 All notable changes to VFX Mesh Generator are documented in this file.
 
+## 0.5.0 - 2026-07-28
+
+### Added
+
+- Added Outer Rim, Middle, and Inner Rim origins for Arc angular-width scaling.
+- Added Preserve Texel Density and Stretch To Width modes for Ribbon Shape Default UVs.
+
+### Fixed
+
+- Removed triangle-by-triangle checker kinks from tapered Ribbon Shape Default UVs by using an affine, width-aware layout by default.
+- Kept mirrored Arc outer rims joined for every width origin, including elevation curves with a nonzero outer endpoint.
+
 ## 0.4.0 - 2026-07-28
 
 ### Added

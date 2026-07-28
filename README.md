@@ -3,7 +3,7 @@
 ![Unity](https://img.shields.io/badge/Unity-6%2B-black)
 ![Render Pipeline](https://img.shields.io/badge/Render%20Pipeline-URP-5b7fff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.4.0-orange)
+![Version](https://img.shields.io/badge/version-0.5.0-orange)
 
 A free and open-source Unity 6+ editor tool for generating and art-directing procedural meshes for real-time VFX workflows.
 
@@ -118,10 +118,10 @@ In Unity:
 4. Paste:
 
 ```text
-https://github.com/PudinKiller/VFXMeshGenerator.git#v0.4.0
+https://github.com/PudinKiller/VFXMeshGenerator.git#v0.5.0
 ```
 
-Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v0.4.0`.
+Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v0.5.0`.
 
 <details>
 <summary><b>Install without Git</b></summary>
@@ -221,6 +221,7 @@ Inner Radius: Set the inside edge
 Outer Radius: Set the outside edge
 Arc Degrees: Set the slash sweep
 Angular Width Curve: Taper one or both ends
+Radial Width Origin: Anchor the taper at the outer rim, middle, or inner rim
 Mirror Across Shape Plane: On
 ```
 
@@ -232,9 +233,9 @@ UV Projection: Along Length or Shape Default
 Double Sided: Enable only when independently lit backfaces are required
 ```
 
-The Angular Width Curve scales thickness inward while keeping the outer rim anchored. Set a curve endpoint to zero for a pointed outer-rim tip.
+The Angular Width Curve scales radial thickness around the selected origin. `Outer Rim` moves only the inner radius, `Middle` moves both radii evenly, and `Inner Rim` moves only the outer radius. A zero curve value collapses the strip to the selected radial origin. Axial elevation remains referenced to the outer rim so mirrored shells stay joined.
 
-`Mirror Across Shape Plane` creates a disconnected reflected shell with matching UVs. It is different from `Double Sided`, which duplicates reversed faces at the same positions.
+`Mirror Across Shape Plane` creates a disconnected reflected shell with matching UVs and aligns both shells at the outer rim. It is different from `Double Sided`, which duplicates reversed faces at the same positions.
 
 </details>
 
@@ -265,7 +266,8 @@ Start with:
 Shape: Ribbon
 Width Curve: Taper the start and end
 Length Segments: Increase before adding deformation
-UV Projection: Along Length
+UV Projection: Shape Default
+Shape Default Width UV: Preserve Texel Density
 ```
 
 Useful modifiers:
@@ -275,6 +277,8 @@ Bend -> Wave -> Noise
 ```
 
 Modifier order matters. A wave added after a bend produces a different result from bending an already-wavy ribbon.
+
+`Preserve Texel Density` narrows the UV footprint with the ribbon and removes diagonal interpolation kinks. Use `Stretch To Width` when every row must fill U 0-1; ordinary triangle interpolation can show chevrons on low-resolution tapers in that mode.
 
 </details>
 
@@ -336,7 +340,7 @@ Add Twist, Wave, or Noise for secondary motion. Use `Along Length` UVs for scrol
 | Quad | Width, length, subdivisions | Sprites, decals, flashes, simple cards |
 | Disc | Radius, edge count, radial resolution | Circular flashes, ground effects, radial masks |
 | Ring | Inner/outer radius, radial resolution, elevation curve | Shockwaves, portals, ground rings |
-| Arc | Ring controls, sweep, width curve, elevation, mirrored shell | Slashes, crescents, directional shockwaves |
+| Arc | Ring controls, sweep, width curve origin, elevation, mirrored shell | Slashes, crescents, directional shockwaves |
 | Cone | Height, bottom/top radius, radial and height segments, caps | Spot volumes, directional bursts, funnels |
 | Cylinder | Height, radius, radial and height segments, caps | Beams, columns, volumes |
 | Tube | Height, inner/outer radius, radial and height segments, caps | Hollow beams, tunnels, cylindrical shells |
@@ -344,7 +348,7 @@ Add Twist, Wave, or Noise for secondary motion. Use `Along Length` UVs for scrol
 | Hemisphere | Radius, longitude, latitude, equator cap | Domes, ground shields, explosion shells |
 | Torus | Major/minor radius, ring/tube segments, sweep | Portals, energy loops, curved bands |
 | Box | Size and X/Y/Z subdivisions | Volumes, distortion regions, box masks |
-| Ribbon | Width, length, width curve, subdivisions | Trails, streaks, tapered strips |
+| Ribbon | Width, length, width curve, Shape Default width UV mode, subdivisions | Trails, streaks, tapered strips |
 | Cross Planes | Width, height, plane count, subdivisions | Smoke, flame, foliage, volumetric cards |
 | Helix | Radius, strip width, turns, pitch, width curve | Spirals, coils, energy trails |
 
@@ -413,6 +417,8 @@ Final UV transforms include:
 - Swap U/V
 
 Use `UV Checker` preview mode to inspect orientation, scale, distortion, and seams before saving.
+
+For tapered Ribbons, `Preserve Texel Density` is the artifact-free Shape Default layout: U remains proportional to local mesh width, so both triangles share one affine mapping. `Stretch To Width` keeps U at 0-1 on every row, but a tapered trapezoid cannot express that projective mapping exactly with ordinary interpolated triangle UVs. Increase subdivisions if that legacy layout is required.
 
 Sphere and Hemisphere Shape Default UVs split the shared pole per longitude sector, preventing unrelated sectors from interpolating toward one pole U coordinate. Latitude-longitude UVs still compress naturally at the pole; more subdivisions or another projection can trade that compression for different seams.
 

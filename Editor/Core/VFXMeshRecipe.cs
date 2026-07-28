@@ -48,6 +48,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public bool capStart = true;
         public bool capEnd = true;
         public bool mirrorArcAcrossShapePlane;
+        public VFXArcWidthOrigin arcWidthOrigin = VFXArcWidthOrigin.OuterRim;
+        public VFXRibbonUVWidthMode ribbonUVWidthMode =
+            VFXRibbonUVWidthMode.PreserveTexelDensity;
         public VFXAxis axis = VFXAxis.Y;
         public VFXPivot pivot = VFXPivot.Center;
         public Vector3 customPivotOffset;
