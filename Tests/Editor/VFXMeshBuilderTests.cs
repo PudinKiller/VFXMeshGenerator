@@ -699,6 +699,86 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
+        public void MirroredVariableWidthArcAnchorsOuterRimOnMirrorPlane()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.25f;
+            recipe.shape.radius = 1.25f;
+            recipe.shape.radialSegments = 8;
+            recipe.shape.widthSegments = 3;
+            recipe.shape.arcDegrees = 160f;
+            recipe.shape.angleOffset = 17f;
+            recipe.shape.radialElevationCurve = new AnimationCurve(
+                new Keyframe(0f, 0.45f),
+                new Keyframe(0.5f, 0.3f),
+                new Keyframe(1f, 0f));
+            recipe.shape.arcWidthCurve = new AnimationCurve(
+                new Keyframe(0f, 0.25f),
+                new Keyframe(0.5f, 0.8f),
+                new Keyframe(1f, 0.4f));
+            recipe.shape.mirrorArcAcrossShapePlane = true;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var columnStride = recipe.shape.widthSegments + 1;
+                var shellVertexCount =
+                    (recipe.shape.radialSegments + 1) * columnStride;
+                Assert.That(vertices, Has.Length.EqualTo(shellVertexCount * 2));
+
+                for (var segment = 0; segment <= recipe.shape.radialSegments; segment++)
+                {
+                    var angularT = segment / (float)recipe.shape.radialSegments;
+                    var angle = (
+                        recipe.shape.angleOffset +
+                        recipe.shape.arcDegrees * angularT) * Mathf.Deg2Rad;
+                    var expectedOuter = new Vector3(
+                        Mathf.Cos(angle) * recipe.shape.radius,
+                        0f,
+                        Mathf.Sin(angle) * recipe.shape.radius);
+                    var sourceInner = segment * columnStride;
+                    var sourceOuter = sourceInner + recipe.shape.widthSegments;
+                    var mirroredInner = shellVertexCount + sourceInner;
+                    var mirroredOuter = shellVertexCount + sourceOuter;
+
+                    Assert.That(
+                        Vector3.Distance(vertices[sourceOuter], expectedOuter),
+                        Is.LessThan(1e-5f),
+                        $"Source outer vertex {segment} moved away from the outer-rim anchor.");
+                    Assert.That(
+                        Vector3.Distance(vertices[mirroredOuter], expectedOuter),
+                        Is.LessThan(1e-5f),
+                        $"Mirrored outer vertex {segment} does not meet the source at Y=0.");
+                    Assert.That(
+                        Vector3.Distance(vertices[sourceOuter], vertices[mirroredOuter]),
+                        Is.LessThan(1e-6f),
+                        $"Outer-rim pair {segment} is split across the mirror plane.");
+
+                    Assert.That(
+                        vertices[sourceInner].y,
+                        Is.GreaterThan(1e-4f),
+                        $"Source inner vertex {segment} lost its elevation.");
+                    Assert.That(
+                        vertices[mirroredInner].y,
+                        Is.EqualTo(-vertices[sourceInner].y).Within(1e-6f),
+                        $"Inner pair {segment} is not reflected across Y=0.");
+                    Assert.That(
+                        Vector3.Distance(vertices[sourceInner], vertices[mirroredInner]),
+                        Is.GreaterThan(1e-4f),
+                        $"Inner pair {segment} lost the intended mirrored volume.");
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
         public void MirroredClosedArcDoubleSidedSmoothsEveryAngularSeam()
         {
             var recipe = CreateRecipe(VFXMeshShapeType.Arc);
@@ -752,7 +832,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
-        public void ArcWidthCurveCreatesCleanCollapsedTipsAndSamplesMiddleWidth()
+        public void ArcWidthCurveAnchorsCollapsedTipsToOuterRimAndSamplesMiddleWidth()
         {
             var recipe = CreateRecipe(VFXMeshShapeType.Arc);
             recipe.shape.pivot = VFXPivot.Custom;
@@ -762,6 +842,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             recipe.shape.radialSegments = 8;
             recipe.shape.widthSegments = 3;
             recipe.shape.arcDegrees = 160f;
+            recipe.shape.radialElevationCurve = new AnimationCurve(
+                new Keyframe(0f, 0.4f),
+                new Keyframe(0.5f, 0.25f),
+                new Keyframe(1f, 0f));
             recipe.shape.arcWidthCurve = new AnimationCurve(
                 new Keyframe(0f, 0f),
                 new Keyframe(0.5f, 0.6f),
@@ -813,13 +897,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                     Has.Count.EqualTo(recipe.shape.widthSegments + 1),
                     "The middle should retain the requested radial resolution.");
 
-                var centerRadius = (recipe.shape.innerRadius + recipe.shape.radius) * 0.5f;
                 Assert.That(
                     RadialDistance(vertices[startIndices[0]]),
-                    Is.EqualTo(centerRadius).Within(1e-5f));
+                    Is.EqualTo(recipe.shape.radius).Within(1e-5f));
                 Assert.That(
                     RadialDistance(vertices[endIndices[0]]),
-                    Is.EqualTo(centerRadius).Within(1e-5f));
+                    Is.EqualTo(recipe.shape.radius).Within(1e-5f));
+                Assert.That(vertices[startIndices[0]].y, Is.EqualTo(0f).Within(1e-5f));
+                Assert.That(vertices[endIndices[0]].y, Is.EqualTo(0f).Within(1e-5f));
 
                 var minimumMiddleRadius = float.PositiveInfinity;
                 var maximumMiddleRadius = float.NegativeInfinity;
@@ -1097,6 +1182,46 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             finally
             {
                 UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void ShadedWireframeMaterialDepthTestsWithoutForwardBias()
+        {
+            var previewControllerType = typeof(VFXMeshBuilder).Assembly.GetType(
+                "PudinKiller.VFXMeshGenerator.Editor.VFXMeshPreviewController",
+                true);
+            var constructor = previewControllerType.GetConstructor(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null,
+                Type.EmptyTypes,
+                null);
+            Assert.That(constructor, Is.Not.Null);
+
+            object controller = null;
+            try
+            {
+                controller = constructor.Invoke(Array.Empty<object>());
+                var wireMaterialField = previewControllerType.GetField(
+                    "wireMaterial",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(wireMaterialField, Is.Not.Null);
+
+                var wireMaterial = wireMaterialField.GetValue(controller) as Material;
+                Assert.That(wireMaterial, Is.Not.Null);
+                Assert.That(wireMaterial.GetFloat("_WirePass"), Is.EqualTo(1f));
+                Assert.That(wireMaterial.GetFloat("_WireDepthBias"), Is.EqualTo(0f));
+                Assert.That(wireMaterial.GetFloat("_ZWrite"), Is.EqualTo(0f));
+                Assert.That(
+                    wireMaterial.renderQueue,
+                    Is.EqualTo((int)RenderQueue.Geometry + 1));
+            }
+            finally
+            {
+                if (controller is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
             }
         }
 

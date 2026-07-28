@@ -66,7 +66,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 wireMaterial.SetFloat("_Cull", (float)CullMode.Off);
                 wireMaterial.SetFloat("_BackfacePass", 0f);
                 wireMaterial.SetFloat("_WirePass", 1f);
-                wireMaterial.SetFloat("_WireDepthBias", 0.0002f);
+                wireMaterial.SetFloat("_WireDepthBias", 0f);
                 wireMaterial.SetFloat("_ZWrite", 0f);
                 wireMaterial.SetColor("_WireColor", new Color(0.025f, 0.035f, 0.05f, 1f));
             }

@@ -306,9 +306,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             innerRadius = Mathf.Max(MinimumDimension, innerRadius);
-            var centerRadius = (innerRadius + outerRadius) * 0.5f;
-            var halfWidth = (outerRadius - innerRadius) * 0.5f;
-            var middleElevation = EvaluateRadialElevation(shape, 0.5f);
+            var outerElevation = EvaluateRadialElevation(shape, 1f);
             var arcRadians = Degrees(SanitizeArcDegrees(shape.arcDegrees));
             var angleOffset = Degrees(shape.angleOffset);
             var positiveWinding = arcRadians >= 0f;
@@ -329,23 +327,20 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 {
                     draft.AddVertex(
                         new Vector3(
-                            cosine * centerRadius,
-                            middleElevation,
-                            sine * centerRadius),
+                            cosine * outerRadius,
+                            outerElevation,
+                            sine * outerRadius),
                         new Vector2(angularT, 0.5f));
                     continue;
                 }
 
-                var currentHalfWidth = halfWidth * widthFactor;
                 for (var ring = 0; ring <= radiusSegments; ring++)
                 {
                     var radialT = ring / (float)radiusSegments;
-                    var ringRadius = Mathf.Lerp(
-                        centerRadius - currentHalfWidth,
-                        centerRadius + currentHalfWidth,
-                        radialT);
+                    var baseRadius = Mathf.Lerp(innerRadius, outerRadius, radialT);
+                    var ringRadius = Mathf.Lerp(outerRadius, baseRadius, widthFactor);
                     var elevation = Mathf.Lerp(
-                        middleElevation,
+                        outerElevation,
                         EvaluateRadialElevation(shape, radialT),
                         widthFactor);
                     draft.AddVertex(

@@ -81,7 +81,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             "Curve time runs from inner edge or center (0) to outer edge (1). Values displace along Main Axis.");
         public static readonly GUIContent ArcWidthCurve = Create(
             "Angular Width Curve",
-            "Curve time runs from arc start (0) to end (1). Values from 0 to 1 multiply radial thickness around the centerline; use zero at an endpoint for a pointed slash tip.");
+            "Curve time runs from arc start (0) to end (1). Values from 0 to 1 scale radial thickness inward while keeping the outer rim anchored; use zero at an endpoint for a pointed outer-rim slash tip.");
         public static readonly GUIContent MirrorArcAcrossShapePlane = Create(
             "Mirror Across Shape Plane",
             "Add a disconnected second Arc shell reflected across the plane perpendicular to Main Axis. With Main Axis Y this is the XZ plane. Both shells keep identical UVs so texture scrolling moves in the same direction, then modifiers affect each shell independently. This is different from Double Sided.");

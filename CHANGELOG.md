@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Anchored Arc angular-width scaling to the outer rim so mirrored slash shells stay joined when the outer elevation is zero.
+- Removed the shaded-wireframe depth offset that could pull occluded edges through foreground polygons.
+
 ## 0.3.0
 
 - Added Project-window folder drag and drop for the default output folder.
