@@ -1267,13 +1267,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                     if (positiveWinding)
                     {
-                        draft.AddTriangle(a, b, c);
-                        draft.AddTriangle(b, d, c);
+                        draft.AddTriangle(a, c, b);
+                        draft.AddTriangle(b, c, d);
                     }
                     else
                     {
-                        draft.AddTriangle(a, c, b);
-                        draft.AddTriangle(b, c, d);
+                        draft.AddTriangle(a, b, c);
+                        draft.AddTriangle(b, d, c);
                     }
                 }
             }

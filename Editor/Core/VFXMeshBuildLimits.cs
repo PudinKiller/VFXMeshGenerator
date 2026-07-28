@@ -56,6 +56,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var latitude = SafeSegments(shape.latitudeSegments, 2);
             var planes = Math.Max(2, shape.planeCount);
             long baseVertices;
+            long uvExpandedVertices = 0;
 
             checked
             {
@@ -99,6 +100,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                     case VFXMeshShapeType.Sphere:
                         baseVertices = (long)Math.Max(1, latitude - 1) * (longitude + 1) + 2L;
+                        if (recipe.uv == null ||
+                            recipe.uv.projection == VFXUVProjection.ShapeDefault)
+                        {
+                            uvExpandedVertices = 2L * (longitude - 1L);
+                        }
                         break;
 
                     case VFXMeshShapeType.Hemisphere:
@@ -106,6 +112,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                             (long)Math.Max(1, latitude) * (longitude + 1) +
                             1L +
                             (shape.capEnd ? longitude + 2L : 0L);
+                        if (recipe.uv == null ||
+                            recipe.uv.projection == VFXUVProjection.ShapeDefault)
+                        {
+                            uvExpandedVertices = longitude - 1L;
+                        }
                         break;
 
                     case VFXMeshShapeType.Torus:
@@ -148,10 +159,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     return false;
                 }
 
-                estimatedFinalVertices = baseVertices;
                 if (recipe.output?.flatShading == true)
                 {
-                    estimatedFinalVertices *= 6L;
+                    estimatedFinalVertices = baseVertices * 6L;
+                }
+                else
+                {
+                    estimatedFinalVertices = baseVertices + uvExpandedVertices;
                 }
 
                 if (recipe.output?.doubleSided == true)

@@ -3,7 +3,7 @@
 ![Unity](https://img.shields.io/badge/Unity-6%2B-black)
 ![Render Pipeline](https://img.shields.io/badge/Render%20Pipeline-URP-5b7fff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.3.1-orange)
+![Version](https://img.shields.io/badge/version-0.4.0-orange)
 
 A free and open-source Unity 6+ editor tool for generating and art-directing procedural meshes for real-time VFX workflows.
 
@@ -86,7 +86,7 @@ It is a focused Unity editor utility for the procedural VFX meshes that need to 
 | Reusable recipe presets | Save, load, and update complete generator configurations |
 | Native Mesh output | Create standalone `.asset` meshes with no runtime package dependency |
 | Reference-preserving updates | Regenerate an existing Mesh asset while preserving its GUID and references |
-| Project-scoped persistence | Restore the current recipe, output folder, preview preferences, and foldouts |
+| Project-scoped persistence | Restore independent settings per shape, output folder, preview preferences, and foldouts |
 | Editor safety limits | Reject excessive topology before synchronous generation begins |
 
 ---
@@ -118,10 +118,10 @@ In Unity:
 4. Paste:
 
 ```text
-https://github.com/PudinKiller/VFXMeshGenerator.git#v0.3.1
+https://github.com/PudinKiller/VFXMeshGenerator.git#v0.4.0
 ```
 
-Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v0.3.1`.
+Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v0.4.0`.
 
 <details>
 <summary><b>Install without Git</b></summary>
@@ -201,6 +201,8 @@ Preview modes:
 - `Shaded Wireframe`
 
 Backfaces are drawn in red to make winding and open geometry problems easier to identify. Preview visualization does not change the saved mesh.
+
+When `UV Checker` is selected, the toolbar exposes an optional custom Texture2D. Leave it empty for the built-in procedural checker; assigned textures use their import filtering and wrap settings.
 
 The overlay displays vertex count, triangle count, bounds, validation flags, and generation warnings.
 
@@ -412,6 +414,8 @@ Final UV transforms include:
 
 Use `UV Checker` preview mode to inspect orientation, scale, distortion, and seams before saving.
 
+Sphere and Hemisphere Shape Default UVs split the shared pole per longitude sector, preventing unrelated sectors from interpolating toward one pole U coordinate. Latitude-longitude UVs still compress naturally at the pole; more subdivisions or another projection can trade that compression for different seams.
+
 ---
 
 ## VFX Vertex Data
@@ -508,7 +512,7 @@ Preset controls:
 - `Update`: overwrite the selected preset with the current recipe
 - `Save New`: create a new preset asset
 
-The editor also restores project-scoped working state, including the current recipe, output folder, preview mode, preview background, modifier selection, foldouts, and selected preset.
+The editor also restores project-scoped working state, including independent parameters for each shape mode, the current recipe, output folder, preview mode, custom checker texture, preview background, modifier selection, foldouts, and selected preset.
 
 ---
 

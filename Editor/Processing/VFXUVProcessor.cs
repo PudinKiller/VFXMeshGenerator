@@ -50,6 +50,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     SplitAngularPoles(recipe, draft);
                 }
             }
+            else if (recipe.shapeType == VFXMeshShapeType.Sphere ||
+                     recipe.shapeType == VFXMeshShapeType.Hemisphere)
+            {
+                SplitShapeDefaultSphericalPoles(recipe, draft);
+            }
 
             vertexCount = draft.vertices.Count;
             for (var i = 0; i < vertexCount; i++)
@@ -121,6 +126,95 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             DuplicateOptionalChannel(draft.uv3, previousVertexCount, sourceIndex);
             DuplicateOptionalChannel(draft.colors, previousVertexCount, sourceIndex);
             return duplicateIndex;
+        }
+
+        private static void SplitShapeDefaultSphericalPoles(
+            VFXMeshRecipe recipe,
+            VFXMeshDraft draft)
+        {
+            var shape = recipe.shape ?? new VFXShapeSettings();
+            var longitudeSegments = Mathf.Clamp(
+                shape.longitudeSegments,
+                3,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var isSphere = recipe.shapeType == VFXMeshShapeType.Sphere;
+            var latitudeSegments = Mathf.Clamp(
+                shape.latitudeSegments,
+                isSphere ? 2 : 1,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var topPoleIndex = isSphere
+                ? 1 + (latitudeSegments - 1) * (longitudeSegments + 1)
+                : latitudeSegments * (longitudeSegments + 1);
+            var bottomPoleIndex = isSphere ? 0 : -1;
+            var claimedPoles = new HashSet<int>();
+            var triangleIndexCount = draft.triangles.Count;
+            for (var triangle = 0; triangle + 2 < triangleIndexCount; triangle += 3)
+            {
+                var poleCorner = FindPoleCornerByIndex(
+                    draft,
+                    triangle,
+                    bottomPoleIndex,
+                    topPoleIndex);
+                if (poleCorner < 0)
+                {
+                    continue;
+                }
+
+                var poleTriangleIndex = triangle + poleCorner;
+                var sourceIndex = draft.triangles[poleTriangleIndex];
+                var firstNeighbor =
+                    draft.triangles[triangle + (poleCorner + 1) % 3];
+                var secondNeighbor =
+                    draft.triangles[triangle + (poleCorner + 2) % 3];
+                var poleUV = draft.uv0[sourceIndex];
+                poleUV.x =
+                    (draft.uv0[firstNeighbor].x + draft.uv0[secondNeighbor].x) *
+                    0.5f;
+
+                if (claimedPoles.Add(sourceIndex))
+                {
+                    draft.uv0[sourceIndex] = poleUV;
+                }
+                else
+                {
+                    draft.triangles[poleTriangleIndex] =
+                        DuplicateVertexWithUV(draft, sourceIndex, poleUV);
+                }
+            }
+        }
+
+        private static int FindPoleCornerByIndex(
+            VFXMeshDraft draft,
+            int triangle,
+            int bottomPoleIndex,
+            int topPoleIndex)
+        {
+            for (var corner = 0; corner < 3; corner++)
+            {
+                var sourceIndex = draft.triangles[triangle + corner];
+                if (sourceIndex != bottomPoleIndex &&
+                    sourceIndex != topPoleIndex)
+                {
+                    continue;
+                }
+
+                var firstNeighbor =
+                    draft.triangles[triangle + (corner + 1) % 3];
+                var secondNeighbor =
+                    draft.triangles[triangle + (corner + 2) % 3];
+                var poleV = draft.uv0[sourceIndex].y;
+                var firstNeighborV = draft.uv0[firstNeighbor].y;
+                var secondNeighborV = draft.uv0[secondNeighbor].y;
+                if (Mathf.Abs(firstNeighborV - secondNeighborV) <=
+                        VFXProcessingUtility.Epsilon &&
+                    Mathf.Abs(firstNeighborV - poleV) >
+                        VFXProcessingUtility.Epsilon)
+                {
+                    return corner;
+                }
+            }
+
+            return -1;
         }
 
         private static void SplitAngularPoles(VFXMeshRecipe recipe, VFXMeshDraft draft)

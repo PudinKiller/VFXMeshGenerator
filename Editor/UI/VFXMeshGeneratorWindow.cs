@@ -17,13 +17,23 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             "com.pudinkiller.vfx-mesh-generator.window-state.";
 
         [Serializable]
+        private sealed class ShapeSettingsEntry
+        {
+            public VFXMeshShapeType shapeType;
+            public VFXShapeSettings settings;
+        }
+
+        [Serializable]
         private sealed class PersistentState
         {
             public int version = PersistentStateVersion;
             public VFXMeshRecipe recipe = new VFXMeshRecipe();
+            public List<ShapeSettingsEntry> shapeSettingsByType =
+                new List<ShapeSettingsEntry>();
             public string outputFolder = "Assets";
             public int previewMode;
             public Color previewBackground = new Color(0.11f, 0.12f, 0.14f, 1f);
+            public string previewCheckerTextureGuid;
             public int modifierToAdd = (int)VFXModifierType.Noise;
             public bool shapeExpanded = true;
             public bool modifiersExpanded = true;
@@ -35,11 +45,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         }
 
         [SerializeField] private VFXMeshRecipe recipe = new VFXMeshRecipe();
+        [SerializeField] private List<ShapeSettingsEntry> shapeSettingsByType =
+            new List<ShapeSettingsEntry>();
         [SerializeField] private VFXMeshRecipePreset selectedPreset;
         [SerializeField] private Mesh updateTarget;
         [SerializeField] private string outputFolder = "Assets";
         [SerializeField] private VFXPreviewMode previewMode = VFXPreviewMode.Shaded;
         [SerializeField] private Color previewBackground = new Color(0.11f, 0.12f, 0.14f, 1f);
+        [SerializeField] private Texture2D previewCheckerTexture;
 
         private VFXMeshPreviewController preview;
         private VFXMeshBuildResult buildResult;
@@ -73,6 +86,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             persistentStateKey = BuildPersistentStateKey();
             LoadPersistentState();
             EnsureRecipeState();
+            NormalizeShapeSettingsMemory();
+            RememberShapeSettings(recipe.shapeType, recipe.shape);
             outputFolder = IsWritableAssetFolder(outputFolder)
                 ? NormalizeAssetPath(outputFolder)
                 : "Assets";
@@ -140,6 +155,28 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
             DrawTooltipOverLastControl(VFXMeshGeneratorContent.PreviewMode);
 
+            if (previewMode == VFXPreviewMode.UVChecker)
+            {
+                GUILayout.Space(4f);
+                GUILayout.Label(
+                    VFXMeshGeneratorContent.CheckerTexture,
+                    EditorStyles.miniLabel,
+                    GUILayout.Width(48f));
+                EditorGUI.BeginChangeCheck();
+                var selectedCheckerTexture = (Texture2D)EditorGUILayout.ObjectField(
+                    previewCheckerTexture,
+                    typeof(Texture2D),
+                    false,
+                    GUILayout.Width(120f));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    previewCheckerTexture = selectedCheckerTexture;
+                    QueuePersistentStateSave();
+                    Repaint();
+                }
+                DrawTooltipOverLastControl(VFXMeshGeneratorContent.CheckerTexture);
+            }
+
             if (GUILayout.Button(
                     VFXMeshGeneratorContent.FrontView,
                     EditorStyles.toolbarButton,
@@ -192,9 +229,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 recipe.shapeType);
             if (selectedShape != recipe.shapeType)
             {
-                var previousShape = recipe.shapeType;
-                recipe.shapeType = selectedShape;
-                ApplyShapeSelectionDefaults(previousShape, selectedShape, recipe.shape);
+                SwitchShape(selectedShape);
             }
 
             EditorGUILayout.Space(3f);
@@ -507,23 +542,143 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
         }
 
-        private static void ApplyShapeSelectionDefaults(
-            VFXMeshShapeType previousShape,
-            VFXMeshShapeType selectedShape,
-            VFXShapeSettings settings)
+        private void SwitchShape(VFXMeshShapeType selectedShape)
         {
-            if (settings == null || selectedShape != VFXMeshShapeType.Arc)
+            EnsureRecipeState();
+            if (!Enum.IsDefined(typeof(VFXMeshShapeType), selectedShape) ||
+                selectedShape == recipe.shapeType)
             {
                 return;
             }
 
-            if (previousShape != VFXMeshShapeType.Arc &&
-                Mathf.Abs(settings.arcDegrees) >= 359.999f)
+            RememberShapeSettings(recipe.shapeType, recipe.shape);
+            recipe.shapeType = selectedShape;
+            recipe.shape = RecallShapeSettings(selectedShape);
+        }
+
+        private static VFXShapeSettings CreateDefaultShapeSettings(
+            VFXMeshShapeType shapeType)
+        {
+            var settings = new VFXShapeSettings();
+            if (shapeType == VFXMeshShapeType.Arc)
             {
                 settings.arcDegrees = 180f;
             }
 
-            settings.arcWidthCurve ??= AnimationCurve.Linear(0f, 1f, 1f, 1f);
+            return settings;
+        }
+
+        private static VFXShapeSettings CloneShapeSettings(
+            VFXShapeSettings source)
+        {
+            var clone = new VFXShapeSettings();
+            if (source != null)
+            {
+                JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(source), clone);
+            }
+
+            return clone;
+        }
+
+        private void RememberShapeSettings(
+            VFXMeshShapeType shapeType,
+            VFXShapeSettings settings)
+        {
+            if (!Enum.IsDefined(typeof(VFXMeshShapeType), shapeType))
+            {
+                return;
+            }
+
+            shapeSettingsByType ??= new List<ShapeSettingsEntry>();
+            var snapshot = settings == null
+                ? CreateDefaultShapeSettings(shapeType)
+                : CloneShapeSettings(settings);
+            var existingIndex = -1;
+            for (var index = shapeSettingsByType.Count - 1; index >= 0; index--)
+            {
+                var entry = shapeSettingsByType[index];
+                if (entry == null || entry.shapeType != shapeType)
+                {
+                    continue;
+                }
+
+                if (existingIndex < 0)
+                {
+                    existingIndex = index;
+                }
+                else
+                {
+                    shapeSettingsByType.RemoveAt(index);
+                    existingIndex--;
+                }
+            }
+
+            if (existingIndex >= 0)
+            {
+                shapeSettingsByType[existingIndex].settings = snapshot;
+            }
+            else
+            {
+                shapeSettingsByType.Add(
+                    new ShapeSettingsEntry
+                    {
+                        shapeType = shapeType,
+                        settings = snapshot
+                    });
+            }
+        }
+
+        private VFXShapeSettings RecallShapeSettings(
+            VFXMeshShapeType shapeType)
+        {
+            if (shapeSettingsByType != null)
+            {
+                for (var index = shapeSettingsByType.Count - 1; index >= 0; index--)
+                {
+                    var entry = shapeSettingsByType[index];
+                    if (entry != null &&
+                        entry.shapeType == shapeType &&
+                        entry.settings != null)
+                    {
+                        return CloneShapeSettings(entry.settings);
+                    }
+                }
+            }
+
+            return CreateDefaultShapeSettings(shapeType);
+        }
+
+        private void NormalizeShapeSettingsMemory()
+        {
+            var source = shapeSettingsByType;
+            shapeSettingsByType = new List<ShapeSettingsEntry>();
+            if (source == null)
+            {
+                return;
+            }
+
+            for (var index = 0; index < source.Count; index++)
+            {
+                var entry = source[index];
+                if (entry == null ||
+                    entry.settings == null ||
+                    !Enum.IsDefined(typeof(VFXMeshShapeType), entry.shapeType))
+                {
+                    continue;
+                }
+
+                RememberShapeSettings(entry.shapeType, entry.settings);
+            }
+        }
+
+        private void AdoptRecipe(VFXMeshRecipe incomingRecipe)
+        {
+            EnsureRecipeState();
+            RememberShapeSettings(recipe.shapeType, recipe.shape);
+
+            recipe = incomingRecipe?.DeepCopy() ?? new VFXMeshRecipe();
+            EnsureRecipeState();
+            RememberShapeSettings(recipe.shapeType, recipe.shape);
         }
 
         private static void DrawAnnulusSettings(VFXShapeSettings settings)
@@ -871,8 +1026,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 if (GUILayout.Button(VFXMeshGeneratorContent.LoadPreset))
                 {
-                    recipe = selectedPreset.recipe?.DeepCopy() ?? new VFXMeshRecipe();
-                    EnsureRecipeState();
+                    AdoptRecipe(selectedPreset.recipe);
                     SavePersistentState();
                     ScheduleRebuild(0d);
                     GUIUtility.ExitGUI();
@@ -952,7 +1106,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private void DrawPreview(Rect rect)
         {
-            preview?.Draw(rect, previewMode, previewBackground);
+            preview?.Draw(
+                rect,
+                previewMode,
+                previewBackground,
+                previewCheckerTexture);
 
             var infoRect = new Rect(rect.x + 8f, rect.y + 8f, Mathf.Min(410f, rect.width - 16f), 62f);
             GUI.Box(infoRect, GUIContent.none, EditorStyles.helpBox);
@@ -1204,6 +1362,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 }
 
                 recipe = state.recipe ?? new VFXMeshRecipe();
+                shapeSettingsByType = state.shapeSettingsByType ??
+                    new List<ShapeSettingsEntry>();
                 outputFolder = IsWritableAssetFolder(state.outputFolder)
                     ? NormalizeAssetPath(state.outputFolder)
                     : "Assets";
@@ -1211,6 +1371,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     ? (VFXPreviewMode)state.previewMode
                     : VFXPreviewMode.Shaded;
                 previewBackground = state.previewBackground;
+                previewCheckerTexture = LoadAssetFromGuid<Texture2D>(
+                    state.previewCheckerTextureGuid);
                 modifierToAdd = Enum.IsDefined(typeof(VFXModifierType), state.modifierToAdd)
                     ? (VFXModifierType)state.modifierToAdd
                     : VFXModifierType.Noise;
@@ -1229,6 +1391,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     "VFX Mesh Generator could not restore its editor state: " +
                     exception.Message);
                 EditorPrefs.DeleteKey(persistentStateKey);
+                shapeSettingsByType = new List<ShapeSettingsEntry>();
                 outputFolder = "Assets";
             }
         }
@@ -1262,6 +1425,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         {
             persistentStateSavePending = false;
             EditorApplication.update -= SavePersistentStateWhenDue;
+            EnsureRecipeState();
+            NormalizeShapeSettingsMemory();
+            RememberShapeSettings(recipe.shapeType, recipe.shape);
             if (string.IsNullOrEmpty(persistentStateKey))
             {
                 return;
@@ -1272,11 +1438,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 var state = new PersistentState
                 {
                     recipe = recipe ?? new VFXMeshRecipe(),
+                    shapeSettingsByType = shapeSettingsByType,
                     outputFolder = IsWritableAssetFolder(outputFolder)
                         ? NormalizeAssetPath(outputFolder)
                         : "Assets",
                     previewMode = (int)previewMode,
                     previewBackground = previewBackground,
+                    previewCheckerTextureGuid = GetAssetGuid(previewCheckerTexture),
                     modifierToAdd = (int)modifierToAdd,
                     shapeExpanded = shapeExpanded,
                     modifiersExpanded = modifiersExpanded,
@@ -1299,7 +1467,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private void EnsureRecipeState()
         {
             recipe ??= new VFXMeshRecipe();
-            recipe.shape ??= new VFXShapeSettings();
+            if (!Enum.IsDefined(typeof(VFXMeshShapeType), recipe.shapeType))
+            {
+                recipe.shapeType = VFXMeshShapeType.Quad;
+                recipe.shape = CreateDefaultShapeSettings(recipe.shapeType);
+            }
+
+            recipe.shape ??= CreateDefaultShapeSettings(recipe.shapeType);
             recipe.modifiers ??= new List<VFXMeshModifierSettings>();
             for (var index = 0; index < recipe.modifiers.Count; index++)
             {
@@ -1368,7 +1542,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         {
             if (content != null && !string.IsNullOrEmpty(content.tooltip))
             {
-                GUI.Label(GUILayoutUtility.GetLastRect(), content, GUIStyle.none);
+                GUI.Label(
+                    GUILayoutUtility.GetLastRect(),
+                    new GUIContent(string.Empty, content.tooltip),
+                    GUIStyle.none);
             }
         }
 

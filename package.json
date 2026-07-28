@@ -1,7 +1,7 @@
 {
   "name": "com.pudinkiller.vfx-mesh-generator",
   "displayName": "VFX Mesh Generator",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "unity": "6000.0",
   "description": "A Unity 6 URP editor tool for generating and art-directing procedural meshes for real-time VFX workflows.",
   "keywords": [

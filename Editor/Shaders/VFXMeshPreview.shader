@@ -5,6 +5,8 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
         _BaseColor("Base Color", Color) = (0.58, 0.76, 1, 1)
         _BackfaceColor("Backface Color", Color) = (1, 0.08, 0.05, 1)
         _WireColor("Wire Color", Color) = (0.025, 0.035, 0.05, 1)
+        [NoScaleOffset] _CheckerTexture("Checker Texture", 2D) = "white" {}
+        [Toggle] _UseCheckerTexture("Use Checker Texture", Float) = 0
         _Mode("Mode", Float) = 0
         _PreviewLightDir("Preview Light Direction", Vector) = (0.35, 0.8, 0.45, 0)
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull", Float) = 2
@@ -54,6 +56,9 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
                 float4 color : COLOR;
             };
 
+            TEXTURE2D(_CheckerTexture);
+            SAMPLER(sampler_CheckerTexture);
+
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
                 float4 _BackfaceColor;
@@ -63,6 +68,7 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
                 float _BackfacePass;
                 float _WirePass;
                 float _WireDepthBias;
+                float _UseCheckerTexture;
             CBUFFER_END
 
             Varyings Vert(Attributes input)
@@ -109,6 +115,13 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
 
                 if (_Mode > 2.5)
                 {
+                    if (_UseCheckerTexture > 0.5)
+                    {
+                        half3 checkerColor =
+                            SAMPLE_TEXTURE2D(_CheckerTexture, sampler_CheckerTexture, input.uv).rgb;
+                        return half4(checkerColor, 1.0);
+                    }
+
                     float2 cells = floor(input.uv * 10.0);
                     float checker = fmod(cells.x + cells.y, 2.0);
                     float3 dark = float3(0.08, 0.08, 0.08);

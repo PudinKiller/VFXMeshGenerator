@@ -152,6 +152,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                 mesh.SetTriangles(draft.triangles, 0, false);
                 mesh.RecalculateNormals();
+                SmoothShapeDefaultSphericalPoleNormals(recipe, mesh, output);
                 SmoothClosedRingSeamNormals(recipe, mesh, output);
 
                 if (output.generateTangents)
@@ -187,6 +188,148 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 UnityEngine.Object.DestroyImmediate(mesh);
                 throw;
+            }
+        }
+
+        private static void SmoothShapeDefaultSphericalPoleNormals(
+            VFXMeshRecipe recipe,
+            Mesh mesh,
+            VFXMeshOutputSettings output)
+        {
+            var projection = recipe.uv?.projection ?? VFXUVProjection.ShapeDefault;
+            var isSphere = recipe.shapeType == VFXMeshShapeType.Sphere;
+            var isHemisphere = recipe.shapeType == VFXMeshShapeType.Hemisphere;
+            if (output.flatShading ||
+                projection != VFXUVProjection.ShapeDefault ||
+                (!isSphere && !isHemisphere) ||
+                recipe.shape == null)
+            {
+                return;
+            }
+
+            var normals = mesh.normals;
+            if (normals.Length == 0)
+            {
+                return;
+            }
+
+            var longitudeSegments = Mathf.Clamp(
+                recipe.shape.longitudeSegments,
+                3,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var latitudeSegments = Mathf.Clamp(
+                recipe.shape.latitudeSegments,
+                isSphere ? 2 : 1,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var topPoleIndex = isSphere
+                ? 1 + (latitudeSegments - 1) * (longitudeSegments + 1)
+                : latitudeSegments * (longitudeSegments + 1);
+            var baseVertexCount = isSphere
+                ? topPoleIndex + 1
+                : topPoleIndex +
+                  1 +
+                  (recipe.shape.capEnd ? longitudeSegments + 2 : 0);
+            var sideVertexCount = output.doubleSided
+                ? normals.Length / 2
+                : normals.Length;
+
+            if (isSphere)
+            {
+                SmoothNormalIndexGroup(
+                    normals,
+                    0,
+                    baseVertexCount,
+                    2,
+                    longitudeSegments - 1,
+                    0,
+                    sideVertexCount);
+            }
+
+            SmoothNormalIndexGroup(
+                normals,
+                topPoleIndex,
+                baseVertexCount + (isSphere ? 1 : 0),
+                isSphere ? 2 : 1,
+                longitudeSegments - 1,
+                0,
+                sideVertexCount);
+
+            if (output.doubleSided)
+            {
+                if (isSphere)
+                {
+                    SmoothNormalIndexGroup(
+                        normals,
+                        sideVertexCount,
+                        sideVertexCount + baseVertexCount,
+                        2,
+                        longitudeSegments - 1,
+                        sideVertexCount,
+                        normals.Length);
+                }
+
+                SmoothNormalIndexGroup(
+                    normals,
+                    sideVertexCount + topPoleIndex,
+                    sideVertexCount +
+                    baseVertexCount +
+                    (isSphere ? 1 : 0),
+                    isSphere ? 2 : 1,
+                    longitudeSegments - 1,
+                    sideVertexCount,
+                    normals.Length);
+            }
+
+            mesh.normals = normals;
+        }
+
+        private static void SmoothNormalIndexGroup(
+            IList<Vector3> normals,
+            int referenceIndex,
+            int firstDuplicateIndex,
+            int duplicateStride,
+            int duplicateCount,
+            int start,
+            int end)
+        {
+            if (referenceIndex < start ||
+                referenceIndex >= end ||
+                referenceIndex >= normals.Count ||
+                duplicateStride < 1 ||
+                duplicateCount < 1 ||
+                end > normals.Count)
+            {
+                return;
+            }
+
+            var sum = normals[referenceIndex];
+            var validDuplicateCount = 0;
+            for (var duplicate = 0; duplicate < duplicateCount; duplicate++)
+            {
+                var index = firstDuplicateIndex + duplicate * duplicateStride;
+                if (index < start || index >= end || index >= normals.Count)
+                {
+                    continue;
+                }
+
+                sum += normals[index];
+                validDuplicateCount++;
+            }
+
+            if (validDuplicateCount == 0 || sum.sqrMagnitude <= 1e-12f)
+            {
+                return;
+            }
+
+            var smoothed = sum.normalized;
+            normals[referenceIndex] = smoothed;
+            for (var duplicate = 0; duplicate < duplicateCount; duplicate++)
+            {
+                var index = firstDuplicateIndex + duplicate * duplicateStride;
+                if (index >= start && index < end && index < normals.Count)
+                {
+                    normals[index] = smoothed;
+                }
             }
         }
 

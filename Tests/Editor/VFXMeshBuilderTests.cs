@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -235,6 +236,26 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
+        public void FlatSphereSafetyEstimateDoesNotCountDiscardedPoleCopies()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Sphere);
+            recipe.shape.longitudeSegments = 4096;
+            recipe.shape.latitudeSegments = 40;
+            recipe.uv.projection = VFXUVProjection.ShapeDefault;
+            recipe.output.flatShading = true;
+
+            var valid = VFXMeshBuildLimits.TryValidate(
+                recipe,
+                out var estimatedFinalVertices,
+                out var error);
+
+            Assert.That(valid, Is.True, error);
+            Assert.That(
+                estimatedFinalVertices,
+                Is.LessThanOrEqualTo(VFXMeshBuildLimits.MaximumFinalVertexEstimate));
+        }
+
+        [Test]
         public void AngularProjectionSplitsWrappedSeamTriangles()
         {
             var recipe = CreateRecipe(VFXMeshShapeType.Disc);
@@ -351,6 +372,203 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 Assert.That(
                     referencedCenterVertices,
                     Has.Count.EqualTo(recipe.shape.radialSegments));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [TestCase(VFXMeshShapeType.Sphere, 7, 14)]
+        [TestCase(VFXMeshShapeType.Hemisphere, 4, 4)]
+        public void ShapeDefaultSphericalPolesUseIndependentSectorUVs(
+            VFXMeshShapeType shapeType,
+            int longitudeSegments,
+            int expectedFanTriangleCount)
+        {
+            var recipe = CreateRecipe(shapeType);
+            recipe.shape.longitudeSegments = longitudeSegments;
+            recipe.shape.latitudeSegments = 4;
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.uv.projection = VFXUVProjection.ShapeDefault;
+            recipe.modifiers.Add(
+                new VFXMeshModifierSettings
+                {
+                    type = VFXModifierType.Skew,
+                    axis = VFXAxis.Y,
+                    space = VFXModifierSpace.Axis,
+                    strength = 0.12f
+                });
+            recipe.vertexData.generateUV1 = true;
+            recipe.vertexData.uv1.x = VFXDataSource.Random;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var uv = result.mesh.uv;
+                var vertices = result.mesh.vertices;
+                var normals = result.mesh.normals;
+                var triangles = result.mesh.triangles;
+                var packedUV1 = new List<Vector4>();
+                result.mesh.GetUVs(1, packedUV1);
+                var latitudeSegments = recipe.shape.latitudeSegments;
+                var topPoleIndex = shapeType == VFXMeshShapeType.Sphere
+                    ? 1 + (latitudeSegments - 1) * (longitudeSegments + 1)
+                    : latitudeSegments * (longitudeSegments + 1);
+                var polePositions = shapeType == VFXMeshShapeType.Sphere
+                    ? new[] { vertices[0], vertices[topPoleIndex] }
+                    : new[] { vertices[topPoleIndex] };
+                var referencedPoleVertices = new HashSet<int>();
+                var groupNormals = new Dictionary<int, Vector3>();
+                var groupRandomValues = new Dictionary<int, float>();
+                var fanTriangleCount = 0;
+
+                for (var triangle = 0; triangle < triangles.Length; triangle += 3)
+                {
+                    var poleCorner = FindCoincidentPoleCorner(
+                        vertices,
+                        triangles,
+                        triangle,
+                        polePositions,
+                        out var poleGroup);
+                    if (poleCorner < 0)
+                    {
+                        continue;
+                    }
+
+                    var poleIndex = triangles[triangle + poleCorner];
+                    var firstNeighbor =
+                        triangles[triangle + (poleCorner + 1) % 3];
+                    var secondNeighbor =
+                        triangles[triangle + (poleCorner + 2) % 3];
+                    Assert.That(
+                        referencedPoleVertices.Add(poleIndex),
+                        Is.True,
+                        $"Pole vertex {poleIndex} was reused by multiple fan sectors.");
+                    Assert.That(
+                        uv[poleIndex].x,
+                        Is.EqualTo(
+                                (uv[firstNeighbor].x + uv[secondNeighbor].x) *
+                                0.5f)
+                            .Within(1e-6f));
+
+                    var minimumU = Mathf.Min(
+                        uv[poleIndex].x,
+                        Mathf.Min(uv[firstNeighbor].x, uv[secondNeighbor].x));
+                    var maximumU = Mathf.Max(
+                        uv[poleIndex].x,
+                        Mathf.Max(uv[firstNeighbor].x, uv[secondNeighbor].x));
+                    Assert.That(
+                        maximumU - minimumU,
+                        Is.LessThanOrEqualTo(1f / longitudeSegments + 1e-5f));
+
+                    if (groupNormals.TryGetValue(poleGroup, out var groupNormal))
+                    {
+                        Assert.That(
+                            Vector3.Distance(normals[poleIndex], groupNormal),
+                            Is.LessThan(1e-5f),
+                            "UV pole splitting introduced a hard normal seam.");
+                        Assert.That(
+                            packedUV1[poleIndex].x,
+                            Is.EqualTo(groupRandomValues[poleGroup]).Within(1e-6f),
+                            "Coincident pole copies received different packed Random data.");
+                    }
+                    else
+                    {
+                        groupNormals.Add(poleGroup, normals[poleIndex]);
+                        groupRandomValues.Add(poleGroup, packedUV1[poleIndex].x);
+                    }
+
+                    fanTriangleCount++;
+                }
+
+                Assert.That(fanTriangleCount, Is.EqualTo(expectedFanTriangleCount));
+                Assert.That(referencedPoleVertices, Has.Count.EqualTo(expectedFanTriangleCount));
+                var baseVertexCount = shapeType == VFXMeshShapeType.Sphere
+                    ? (long)(latitudeSegments - 1) * (longitudeSegments + 1) + 2L
+                    : (long)latitudeSegments * (longitudeSegments + 1) +
+                      1L +
+                      (recipe.shape.capEnd ? longitudeSegments + 2L : 0L);
+                var expectedVertexCount = baseVertexCount +
+                    (shapeType == VFXMeshShapeType.Sphere
+                        ? 2L * (longitudeSegments - 1L)
+                        : longitudeSegments - 1L);
+                Assert.That(result.vertexCount, Is.EqualTo(expectedVertexCount));
+                Assert.That(normals, Has.Length.EqualTo(result.vertexCount));
+                Assert.That(result.mesh.tangents, Has.Length.EqualTo(result.vertexCount));
+                Assert.That(packedUV1, Has.Count.EqualTo(result.vertexCount));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [TestCase(2f)]
+        [TestCase(-2f)]
+        public void HelixFrontFacesPointTowardPositiveMainAxis(float turns)
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Helix);
+            recipe.shape.turns = turns;
+            recipe.shape.pitch = 0.3f;
+            recipe.shape.width = 0.2f;
+            recipe.shape.axis = VFXAxis.Y;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var vertices = result.mesh.vertices;
+                var triangles = result.mesh.triangles;
+                for (var triangle = 0; triangle < triangles.Length; triangle += 3)
+                {
+                    Assert.That(
+                        Vector3.Dot(
+                            TriangleNormal(vertices, triangles, triangle),
+                            Vector3.up),
+                        Is.GreaterThan(1e-5f),
+                        $"Triangle {triangle / 3} is back-facing.");
+                }
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void SphericalPoleSmoothingDoesNotMergeFlattenedHemisphereCap()
+        {
+            const int longitudeSegments = 4;
+            const int latitudeSegments = 3;
+            var recipe = CreateRecipe(VFXMeshShapeType.Hemisphere);
+            recipe.shape.longitudeSegments = longitudeSegments;
+            recipe.shape.latitudeSegments = latitudeSegments;
+            recipe.shape.capEnd = true;
+            recipe.uv.projection = VFXUVProjection.ShapeDefault;
+            recipe.modifiers.Add(
+                new VFXMeshModifierSettings
+                {
+                    type = VFXModifierType.Transform,
+                    scale = new Vector3(1f, 0f, 1f)
+                });
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var topPoleIndex =
+                    latitudeSegments * (longitudeSegments + 1);
+                var capCenterIndex = topPoleIndex + 1;
+                var normals = result.mesh.normals;
+                Assert.That(
+                    Vector3.Dot(normals[topPoleIndex], Vector3.up),
+                    Is.GreaterThan(0.99f));
+                Assert.That(
+                    Vector3.Dot(normals[capCenterIndex], Vector3.up),
+                    Is.LessThan(-0.99f));
             }
             finally
             {
@@ -1177,11 +1395,201 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 Assert.That(material.HasProperty("_WireColor"), Is.True);
                 Assert.That(material.HasProperty("_WireDepthBias"), Is.True);
                 Assert.That(material.HasProperty("_ZWrite"), Is.True);
+                Assert.That(material.HasProperty("_CheckerTexture"), Is.True);
+                Assert.That(material.HasProperty("_UseCheckerTexture"), Is.True);
                 Assert.That(material.GetColor("_BackfaceColor").a, Is.EqualTo(1f).Within(1e-6f));
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void PreviewControllerBindsAndClearsCustomCheckerTexture()
+        {
+            var previewControllerType = typeof(VFXMeshBuilder).Assembly.GetType(
+                "PudinKiller.VFXMeshGenerator.Editor.VFXMeshPreviewController",
+                true);
+            var constructor = previewControllerType.GetConstructor(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null,
+                Type.EmptyTypes,
+                null);
+            var applyCheckerTexture = previewControllerType.GetMethod(
+                "ApplyCheckerTexture",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var frontMaterialField = previewControllerType.GetField(
+                "frontMaterial",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(constructor, Is.Not.Null);
+            Assert.That(applyCheckerTexture, Is.Not.Null);
+            Assert.That(frontMaterialField, Is.Not.Null);
+
+            object controller = null;
+            Texture2D checkerTexture = null;
+            try
+            {
+                controller = constructor.Invoke(Array.Empty<object>());
+                checkerTexture = new Texture2D(2, 2);
+                applyCheckerTexture.Invoke(controller, new object[] { checkerTexture });
+
+                var frontMaterial = frontMaterialField.GetValue(controller) as Material;
+                Assert.That(frontMaterial, Is.Not.Null);
+                Assert.That(
+                    frontMaterial.GetTexture("_CheckerTexture"),
+                    Is.SameAs(checkerTexture));
+                Assert.That(
+                    frontMaterial.GetFloat("_UseCheckerTexture"),
+                    Is.EqualTo(1f));
+
+                applyCheckerTexture.Invoke(controller, new object[] { null });
+                Assert.That(frontMaterial.GetTexture("_CheckerTexture"), Is.Null);
+                Assert.That(
+                    frontMaterial.GetFloat("_UseCheckerTexture"),
+                    Is.EqualTo(0f));
+            }
+            finally
+            {
+                if (controller is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+
+                if (checkerTexture != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(checkerTexture);
+                }
+            }
+        }
+
+        [Test]
+        public void WindowPersistsIndependentShapeSettingsAndAdoptsOnlyPresetShape()
+        {
+            var windowType = typeof(VFXMeshGeneratorWindow);
+            var buildStateKey = windowType.GetMethod(
+                "BuildPersistentStateKey",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            var switchShape = windowType.GetMethod(
+                "SwitchShape",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var recipeField = windowType.GetField(
+                "recipe",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var shapeSettingsField = windowType.GetField(
+                "shapeSettingsByType",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var persistentStateKeyField = windowType.GetField(
+                "persistentStateKey",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var adoptRecipe = windowType.GetMethod(
+                "AdoptRecipe",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var savePersistentState = windowType.GetMethod(
+                "SavePersistentState",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var loadPersistentState = windowType.GetMethod(
+                "LoadPersistentState",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var ensureRecipeState = windowType.GetMethod(
+                "EnsureRecipeState",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var normalizeShapeSettingsMemory = windowType.GetMethod(
+                "NormalizeShapeSettingsMemory",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(buildStateKey, Is.Not.Null);
+            Assert.That(switchShape, Is.Not.Null);
+            Assert.That(recipeField, Is.Not.Null);
+            Assert.That(shapeSettingsField, Is.Not.Null);
+            Assert.That(persistentStateKeyField, Is.Not.Null);
+            Assert.That(adoptRecipe, Is.Not.Null);
+            Assert.That(savePersistentState, Is.Not.Null);
+            Assert.That(loadPersistentState, Is.Not.Null);
+            Assert.That(ensureRecipeState, Is.Not.Null);
+            Assert.That(normalizeShapeSettingsMemory, Is.Not.Null);
+
+            var stateKey =
+                (buildStateKey.Invoke(null, null) as string) +
+                ".test." +
+                Guid.NewGuid().ToString("N");
+            VFXMeshGeneratorWindow window = null;
+            try
+            {
+                window = ScriptableObject.CreateInstance<VFXMeshGeneratorWindow>();
+                persistentStateKeyField.SetValue(window, stateKey);
+                recipeField.SetValue(window, new VFXMeshRecipe());
+                shapeSettingsField.SetValue(
+                    window,
+                    Activator.CreateInstance(shapeSettingsField.FieldType));
+                var activeRecipe = recipeField.GetValue(window) as VFXMeshRecipe;
+                Assert.That(activeRecipe, Is.Not.Null);
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Arc });
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(180f));
+                activeRecipe.shape.arcDegrees = 137f;
+                activeRecipe.shape.radius = 1.7f;
+                activeRecipe.shape.capEnd = false;
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(360f));
+                Assert.That(activeRecipe.shape.radius, Is.EqualTo(0.5f));
+                Assert.That(activeRecipe.shape.capEnd, Is.True);
+                activeRecipe.shape.arcDegrees = 271f;
+                activeRecipe.shape.radius = 2.4f;
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Arc });
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(137f));
+                Assert.That(activeRecipe.shape.radius, Is.EqualTo(1.7f));
+                Assert.That(activeRecipe.shape.capEnd, Is.False);
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(271f));
+                Assert.That(activeRecipe.shape.radius, Is.EqualTo(2.4f));
+
+                var arcPresetRecipe = new VFXMeshRecipe
+                {
+                    shapeType = VFXMeshShapeType.Arc,
+                    shape = new VFXShapeSettings
+                    {
+                        arcDegrees = 212f,
+                        radius = 3.6f
+                    }
+                };
+                adoptRecipe.Invoke(window, new object[] { arcPresetRecipe });
+                activeRecipe = recipeField.GetValue(window) as VFXMeshRecipe;
+                Assert.That(activeRecipe.shapeType, Is.EqualTo(VFXMeshShapeType.Arc));
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(212f));
+                Assert.That(activeRecipe.shape.radius, Is.EqualTo(3.6f));
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Cylinder });
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(271f));
+                Assert.That(activeRecipe.shape.radius, Is.EqualTo(2.4f));
+
+                savePersistentState.Invoke(window, null);
+                UnityEngine.Object.DestroyImmediate(window);
+                window = ScriptableObject.CreateInstance<VFXMeshGeneratorWindow>();
+                persistentStateKeyField.SetValue(window, stateKey);
+                loadPersistentState.Invoke(window, null);
+                ensureRecipeState.Invoke(window, null);
+                normalizeShapeSettingsMemory.Invoke(window, null);
+                activeRecipe = recipeField.GetValue(window) as VFXMeshRecipe;
+                Assert.That(activeRecipe.shapeType, Is.EqualTo(VFXMeshShapeType.Cylinder));
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(271f));
+                Assert.That(activeRecipe.shape.radius, Is.EqualTo(2.4f));
+
+                switchShape.Invoke(window, new object[] { VFXMeshShapeType.Arc });
+                Assert.That(activeRecipe.shape.arcDegrees, Is.EqualTo(212f));
+                Assert.That(activeRecipe.shape.radius, Is.EqualTo(3.6f));
+            }
+            finally
+            {
+                if (window != null)
+                {
+                    persistentStateKeyField.SetValue(window, null);
+                    UnityEngine.Object.DestroyImmediate(window);
+                }
+
+                EditorPrefs.DeleteKey(stateKey);
             }
         }
 
@@ -1251,6 +1659,30 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         private static Vector3 ReflectAcrossXZ(Vector3 value)
         {
             return new Vector3(value.x, -value.y, value.z);
+        }
+
+        private static int FindCoincidentPoleCorner(
+            IReadOnlyList<Vector3> vertices,
+            IReadOnlyList<int> triangles,
+            int triangle,
+            IReadOnlyList<Vector3> polePositions,
+            out int poleGroup)
+        {
+            for (var corner = 0; corner < 3; corner++)
+            {
+                var position = vertices[triangles[triangle + corner]];
+                for (var group = 0; group < polePositions.Count; group++)
+                {
+                    if (Vector3.Distance(position, polePositions[group]) <= 1e-6f)
+                    {
+                        poleGroup = group;
+                        return corner;
+                    }
+                }
+            }
+
+            poleGroup = -1;
+            return -1;
         }
 
         private static Vector3 TriangleNormal(

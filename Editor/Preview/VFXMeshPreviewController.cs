@@ -44,6 +44,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 frontMaterial.SetFloat("_BackfacePass", 0f);
                 frontMaterial.SetFloat("_WirePass", 0f);
                 frontMaterial.SetFloat("_WireDepthBias", 0f);
+                frontMaterial.SetFloat("_UseCheckerTexture", 0f);
                 frontMaterial.SetFloat("_ZWrite", 1f);
 
                 backfaceMaterial = new Material(shader)
@@ -87,7 +88,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             pan = Vector3.zero;
         }
 
-        public void Draw(Rect rect, VFXPreviewMode mode, Color background)
+        public void Draw(
+            Rect rect,
+            VFXPreviewMode mode,
+            Color background,
+            Texture2D checkerTexture)
         {
             if (rect.width < 2f || rect.height < 2f)
             {
@@ -124,6 +129,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             frontMaterial.SetFloat("_Mode", (float)surfaceMode);
             frontMaterial.SetColor("_BaseColor", new Color(0.58f, 0.76f, 1f, 1f));
             frontMaterial.SetVector("_PreviewLightDir", new Vector4(0.35f, 0.8f, 0.45f, 0f));
+            ApplyCheckerTexture(checkerTexture);
 
             var wireframe = mode == VFXPreviewMode.Wireframe;
             Texture texture = null;
@@ -174,6 +180,17 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             DrawToolbarHints(rect);
+        }
+
+        private void ApplyCheckerTexture(Texture2D checkerTexture)
+        {
+            if (frontMaterial == null)
+            {
+                return;
+            }
+
+            frontMaterial.SetTexture("_CheckerTexture", checkerTexture);
+            frontMaterial.SetFloat("_UseCheckerTexture", checkerTexture != null ? 1f : 0f);
         }
 
         public void FrameMesh()

@@ -2,6 +2,19 @@
 
 All notable changes to VFX Mesh Generator are documented in this file.
 
+## 0.4.0 - 2026-07-28
+
+### Added
+
+- Added independent, project-persistent shape settings so switching shape modes restores each shape's own parameters.
+- Added an optional custom texture field for UV Checker preview mode, with the procedural checker retained as the fallback.
+
+### Fixed
+
+- Reversed Helix topology so its authored front faces point toward the positive Main Axis for either turn direction.
+- Split Sphere and Hemisphere Shape Default UV poles per angular sector to remove pinwheel and zigzag interpolation artifacts.
+- Preserved smooth pole normals and consistent packed vertex data across the new UV-only vertex splits.
+
 ## 0.3.1 - 2026-07-28
 
 ### Fixed

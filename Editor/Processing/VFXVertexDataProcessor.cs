@@ -20,8 +20,6 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 throw new ArgumentNullException(nameof(draft));
             }
 
-            VFXUVProcessor.Apply(recipe, draft);
-
             var settings = recipe.vertexData ?? new VFXVertexDataSettings();
             var bounds = draft.CalculateBounds();
             var vertexCount = draft.vertices.Count;
@@ -84,6 +82,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 axis,
                 shapeAxis,
                 maximumRadius);
+
+            VFXUVProcessor.Apply(recipe, draft);
         }
 
         private static Color EvaluateColor(

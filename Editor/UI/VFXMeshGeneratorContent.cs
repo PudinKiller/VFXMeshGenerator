@@ -7,6 +7,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         public static readonly GUIContent PreviewMode = Create(
             string.Empty,
             "Changes only the preview visualization. Generated mesh data is unchanged.");
+        public static readonly GUIContent CheckerTexture = Create(
+            "Checker",
+            "Optional project Texture2D sampled from UV0 in UV Checker view. Leave empty to use the built-in procedural checker. Texture import filtering and wrap settings are respected; this affects only the preview.");
         public static readonly GUIContent FrontView = Create("Front", "Set the preview camera to the front view.");
         public static readonly GUIContent SideView = Create("Side", "Set the preview camera to the side view.");
         public static readonly GUIContent TopView = Create("Top", "Set the preview camera to the top view.");
