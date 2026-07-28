@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -10,7 +11,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private readonly PreviewRenderUtility previewUtility;
         private readonly Material frontMaterial;
         private readonly Material backfaceMaterial;
+        private readonly Material wireMaterial;
         private Mesh mesh;
+        private Mesh wireframeMesh;
         private Vector2 orbit = new Vector2(32f, 20f);
         private Vector3 pan;
         private float distance = 3f;
@@ -39,6 +42,9 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 };
                 frontMaterial.SetFloat("_Cull", (float)CullMode.Back);
                 frontMaterial.SetFloat("_BackfacePass", 0f);
+                frontMaterial.SetFloat("_WirePass", 0f);
+                frontMaterial.SetFloat("_WireDepthBias", 0f);
+                frontMaterial.SetFloat("_ZWrite", 1f);
 
                 backfaceMaterial = new Material(shader)
                 {
@@ -47,12 +53,28 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 };
                 backfaceMaterial.SetFloat("_Cull", (float)CullMode.Front);
                 backfaceMaterial.SetFloat("_BackfacePass", 1f);
+                backfaceMaterial.SetFloat("_WirePass", 0f);
+                backfaceMaterial.SetFloat("_WireDepthBias", 0f);
+                backfaceMaterial.SetFloat("_ZWrite", 1f);
                 backfaceMaterial.SetColor("_BackfaceColor", new Color(1f, 0.08f, 0.05f, 1f));
+
+                wireMaterial = new Material(shader)
+                {
+                    hideFlags = HideFlags.HideAndDontSave,
+                    renderQueue = (int)RenderQueue.Geometry + 1
+                };
+                wireMaterial.SetFloat("_Cull", (float)CullMode.Off);
+                wireMaterial.SetFloat("_BackfacePass", 0f);
+                wireMaterial.SetFloat("_WirePass", 1f);
+                wireMaterial.SetFloat("_WireDepthBias", 0.0002f);
+                wireMaterial.SetFloat("_ZWrite", 0f);
+                wireMaterial.SetColor("_WireColor", new Color(0.025f, 0.035f, 0.05f, 1f));
             }
         }
 
         public void SetMesh(Mesh value, bool frame = true)
         {
+            DestroyWireframeMesh();
             mesh = value;
             if (mesh == null || !frame)
             {
@@ -75,9 +97,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             HandleInput(rect);
             EditorGUI.DrawRect(rect, background);
 
-            if (mesh == null || frontMaterial == null || backfaceMaterial == null)
+            if (mesh == null || frontMaterial == null || backfaceMaterial == null || wireMaterial == null)
             {
-                DrawCenteredLabel(rect, frontMaterial == null || backfaceMaterial == null
+                DrawCenteredLabel(
+                    rect,
+                    frontMaterial == null || backfaceMaterial == null || wireMaterial == null
                     ? "Preview shader could not be loaded or is unsupported."
                     : "Adjust the settings to build a preview mesh.");
                 return;
@@ -94,7 +118,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             camera.nearClipPlane = Mathf.Max(0.001f, distance - framingRadius * 2.5f);
             camera.farClipPlane = distance + framingRadius * 4f + 10f;
 
-            frontMaterial.SetFloat("_Mode", (float)mode);
+            var surfaceMode = mode == VFXPreviewMode.ShadedWireframe
+                ? VFXPreviewMode.Shaded
+                : mode;
+            frontMaterial.SetFloat("_Mode", (float)surfaceMode);
             frontMaterial.SetColor("_BaseColor", new Color(0.58f, 0.76f, 1f, 1f));
             frontMaterial.SetVector("_PreviewLightDir", new Vector4(0.35f, 0.8f, 0.45f, 0f));
 
@@ -107,6 +134,19 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 previewBegan = true;
                 previewUtility.DrawMesh(mesh, Matrix4x4.identity, backfaceMaterial, 0);
                 previewUtility.DrawMesh(mesh, Matrix4x4.identity, frontMaterial, 0);
+                if (mode == VFXPreviewMode.ShadedWireframe)
+                {
+                    EnsureWireframeMesh();
+                    if (wireframeMesh != null)
+                    {
+                        previewUtility.DrawMesh(
+                            wireframeMesh,
+                            Matrix4x4.identity,
+                            wireMaterial,
+                            0);
+                    }
+                }
+
                 GL.wireframe = wireframe;
                 previewUtility.Render(true);
                 texture = previewUtility.EndPreview();
@@ -209,6 +249,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         public void Dispose()
         {
+            DestroyWireframeMesh();
             previewUtility.Cleanup();
             if (frontMaterial != null)
             {
@@ -219,6 +260,76 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 UnityEngine.Object.DestroyImmediate(backfaceMaterial);
             }
+
+            if (wireMaterial != null)
+            {
+                UnityEngine.Object.DestroyImmediate(wireMaterial);
+            }
+        }
+
+        private void EnsureWireframeMesh()
+        {
+            if (wireframeMesh == null)
+            {
+                wireframeMesh = CreateWireframeOverlayMesh(mesh);
+            }
+        }
+
+        private void DestroyWireframeMesh()
+        {
+            if (wireframeMesh != null)
+            {
+                UnityEngine.Object.DestroyImmediate(wireframeMesh);
+                wireframeMesh = null;
+            }
+        }
+
+        private static Mesh CreateWireframeOverlayMesh(Mesh source)
+        {
+            if (source == null || !source.isReadable)
+            {
+                return null;
+            }
+
+            var vertices = source.vertices;
+            var triangles = source.triangles;
+            var edges = new HashSet<ulong>();
+            var lineIndices = new List<int>(triangles.Length * 2);
+            for (var triangle = 0; triangle + 2 < triangles.Length; triangle += 3)
+            {
+                AddEdge(triangles[triangle], triangles[triangle + 1], edges, lineIndices);
+                AddEdge(triangles[triangle + 1], triangles[triangle + 2], edges, lineIndices);
+                AddEdge(triangles[triangle + 2], triangles[triangle], edges, lineIndices);
+            }
+
+            var overlay = new Mesh
+            {
+                name = source.name + " Wireframe Preview",
+                hideFlags = HideFlags.HideAndDontSave,
+                indexFormat = source.indexFormat
+            };
+            overlay.SetVertices(vertices);
+            overlay.SetIndices(lineIndices, MeshTopology.Lines, 0, false);
+            overlay.bounds = source.bounds;
+            return overlay;
+        }
+
+        private static void AddEdge(
+            int first,
+            int second,
+            HashSet<ulong> edges,
+            List<int> lineIndices)
+        {
+            var minimum = Mathf.Min(first, second);
+            var maximum = Mathf.Max(first, second);
+            var key = ((ulong)(uint)minimum << 32) | (uint)maximum;
+            if (!edges.Add(key))
+            {
+                return;
+            }
+
+            lineIndices.Add(minimum);
+            lineIndices.Add(maximum);
         }
     }
 }

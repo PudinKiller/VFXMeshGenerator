@@ -4,10 +4,14 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
     {
         _BaseColor("Base Color", Color) = (0.58, 0.76, 1, 1)
         _BackfaceColor("Backface Color", Color) = (1, 0.08, 0.05, 1)
+        _WireColor("Wire Color", Color) = (0.025, 0.035, 0.05, 1)
         _Mode("Mode", Float) = 0
         _PreviewLightDir("Preview Light Direction", Vector) = (0.35, 0.8, 0.45, 0)
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull", Float) = 2
         [Toggle] _BackfacePass("Backface Pass", Float) = 0
+        [Toggle] _WirePass("Wire Pass", Float) = 0
+        _WireDepthBias("Wire Depth Bias", Float) = 0
+        [Toggle] _ZWrite("Z Write", Float) = 1
     }
 
     SubShader
@@ -24,7 +28,7 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
             Name "Preview"
             Tags { "LightMode" = "UniversalForward" }
             Cull [_Cull]
-            ZWrite On
+            ZWrite [_ZWrite]
             ZTest LEqual
 
             HLSLPROGRAM
@@ -53,15 +57,26 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
                 float4 _BackfaceColor;
+                float4 _WireColor;
                 float4 _PreviewLightDir;
                 float _Mode;
                 float _BackfacePass;
+                float _WirePass;
+                float _WireDepthBias;
             CBUFFER_END
 
             Varyings Vert(Attributes input)
             {
                 Varyings output;
                 output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                if (_WirePass > 0.5)
+                {
+                    #if UNITY_REVERSED_Z
+                        output.positionCS.z += _WireDepthBias * output.positionCS.w;
+                    #else
+                        output.positionCS.z -= _WireDepthBias * output.positionCS.w;
+                    #endif
+                }
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.uv = input.uv;
                 output.color = input.color;
@@ -70,6 +85,11 @@ Shader "Hidden/PudinKiller/VFXMeshPreview"
 
             half4 Frag(Varyings input) : SV_Target
             {
+                if (_WirePass > 0.5)
+                {
+                    return _WireColor;
+                }
+
                 if (_BackfacePass > 0.5)
                 {
                     return _BackfaceColor;

@@ -103,6 +103,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                     case VFXMeshShapeType.Torus:
                         baseVertices = (long)(longitude + 1) * (radial + 1);
+                        if (Math.Abs(
+                                VFXShapeGenerator.SanitizeArcDegrees(shape.arcDegrees)) <
+                            359.999f)
+                        {
+                            baseVertices += shape.capStart ? radial + 2L : 0L;
+                            baseVertices += shape.capEnd ? radial + 2L : 0L;
+                        }
                         break;
 
                     case VFXMeshShapeType.Box:

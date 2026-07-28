@@ -195,11 +195,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             Mesh mesh,
             VFXMeshOutputSettings output)
         {
-            if (output.flatShading ||
-                (recipe.shapeType != VFXMeshShapeType.Ring &&
-                 recipe.shapeType != VFXMeshShapeType.Arc) ||
-                recipe.shape == null ||
-                Mathf.Abs(Mathf.Abs(recipe.shape.arcDegrees) - 360f) > 0.001f)
+            var isRing = recipe.shapeType == VFXMeshShapeType.Ring;
+            var isClosedArc =
+                recipe.shapeType == VFXMeshShapeType.Arc &&
+                recipe.shape != null &&
+                Mathf.Abs(
+                    Mathf.Abs(VFXShapeGenerator.SanitizeArcDegrees(recipe.shape.arcDegrees)) -
+                    360f) <= 0.001f;
+            if (output.flatShading || (!isRing && !isClosedArc) || recipe.shape == null)
             {
                 return;
             }
@@ -212,17 +215,50 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             var sideVertexCount = output.doubleSided ? vertices.Length / 2 : vertices.Length;
-            SmoothClosedRingSide(recipe.shape, normals, 0, sideVertexCount);
+            var variableArcTopology =
+                isClosedArc &&
+                VFXShapeGenerator.UsesVariableArcWidthTopology(recipe.shape);
+            SmoothClosedRadialSide(
+                recipe.shape,
+                vertices,
+                normals,
+                0,
+                sideVertexCount,
+                variableArcTopology);
             if (output.doubleSided)
             {
-                SmoothClosedRingSide(recipe.shape, normals, sideVertexCount, vertices.Length);
+                SmoothClosedRadialSide(
+                    recipe.shape,
+                    vertices,
+                    normals,
+                    sideVertexCount,
+                    vertices.Length,
+                    variableArcTopology);
             }
 
             mesh.normals = normals;
         }
 
-        private static void SmoothClosedRingSide(
+        private static void SmoothClosedRadialSide(
             VFXShapeSettings shape,
+            Vector3[] vertices,
+            Vector3[] normals,
+            int vertexOffset,
+            int sideEnd,
+            bool variableArcTopology)
+        {
+            if (variableArcTopology)
+            {
+                SmoothVariableArcSide(shape, vertices, normals, vertexOffset, sideEnd);
+                return;
+            }
+
+            SmoothRegularRadialSide(shape, vertices, normals, vertexOffset, sideEnd);
+        }
+
+        private static void SmoothRegularRadialSide(
+            VFXShapeSettings shape,
+            Vector3[] vertices,
             Vector3[] normals,
             int vertexOffset,
             int sideEnd)
@@ -248,11 +284,61 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 var first = firstRow + row * stride;
                 var last = first + radialSegments;
-                SmoothNormalPair(normals, first, last, vertexOffset, sideEnd);
+                SmoothNormalPair(vertices, normals, first, last, vertexOffset, sideEnd);
+            }
+        }
+
+        private static void SmoothVariableArcSide(
+            VFXShapeSettings shape,
+            Vector3[] vertices,
+            Vector3[] normals,
+            int vertexOffset,
+            int sideEnd)
+        {
+            var angularSegments = Mathf.Clamp(
+                shape.radialSegments,
+                3,
+                VFXMeshBuildLimits.MaximumSegmentsPerAxis);
+            var radialVertexCount =
+                Mathf.Clamp(
+                    shape.widthSegments,
+                    1,
+                    VFXMeshBuildLimits.MaximumSegmentsPerAxis) +
+                1;
+            var firstCollapsed =
+                VFXShapeGenerator.EvaluateArcWidth(shape, 0f) <= 0.0001f;
+            var lastCollapsed =
+                VFXShapeGenerator.EvaluateArcWidth(shape, 1f) <= 0.0001f;
+            if (firstCollapsed != lastCollapsed)
+            {
+                return;
+            }
+
+            var lastColumn = vertexOffset;
+            for (var segment = 0; segment < angularSegments; segment++)
+            {
+                var angularT = segment / (float)angularSegments;
+                lastColumn +=
+                    VFXShapeGenerator.EvaluateArcWidth(shape, angularT) <= 0.0001f
+                        ? 1
+                        : radialVertexCount;
+            }
+
+            var pairCount = firstCollapsed ? 1 : radialVertexCount;
+            for (var row = 0; row < pairCount; row++)
+            {
+                SmoothNormalPair(
+                    vertices,
+                    normals,
+                    vertexOffset + row,
+                    lastColumn + row,
+                    vertexOffset,
+                    sideEnd);
             }
         }
 
         private static void SmoothNormalPair(
+            Vector3[] vertices,
             Vector3[] normals,
             int first,
             int second,
@@ -260,6 +346,15 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             int sideEnd)
         {
             if (first < sideStart || second >= sideEnd)
+            {
+                return;
+            }
+
+            var positionTolerance = Mathf.Max(
+                1e-5f,
+                Mathf.Max(vertices[first].magnitude, vertices[second].magnitude) * 1e-5f);
+            if ((vertices[first] - vertices[second]).sqrMagnitude >
+                positionTolerance * positionTolerance)
             {
                 return;
             }

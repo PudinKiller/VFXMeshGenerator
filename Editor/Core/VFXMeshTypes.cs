@@ -108,7 +108,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         Wireframe,
         UVChecker,
         Normals,
-        VertexColors
+        VertexColors,
+        ShadedWireframe
     }
 
     [Flags]

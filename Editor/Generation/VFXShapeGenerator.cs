@@ -36,10 +36,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     GenerateDisc(shape, draft);
                     break;
                 case VFXMeshShapeType.Ring:
-                    GenerateRing(shape, draft, true);
+                    GenerateRing(shape, draft, false);
                     break;
                 case VFXMeshShapeType.Arc:
-                    GenerateRing(shape, draft, true);
+                    GenerateArc(shape, draft);
                     break;
                 case VFXMeshShapeType.Cone:
                     GenerateFrustum(shape, draft, Positive(shape.radius), NonNegative(shape.topRadius));
@@ -132,7 +132,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var radialSegments = Segments(shape.radialSegments, 3);
             var radiusSegments = Segments(shape.widthSegments, 1);
             var radius = Positive(shape.radius);
-            var arcDegrees = SafeArc(requestedArcDegrees);
+            var arcDegrees = SanitizeArcDegrees(requestedArcDegrees);
             var angleOffset = Degrees(shape.angleOffset);
             var arcRadians = Degrees(arcDegrees);
             var positiveWinding = arcRadians >= 0f;
@@ -195,7 +195,22 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
         }
 
-        private static void GenerateRing(VFXShapeSettings shape, VFXMeshDraft draft, bool partialArc)
+        private static void GenerateArc(VFXShapeSettings shape, VFXMeshDraft draft)
+        {
+            var angularSegments = Segments(shape.radialSegments, 3);
+            if (!UsesVariableArcWidthTopology(shape, angularSegments))
+            {
+                GenerateRing(shape, draft, true);
+                return;
+            }
+
+            GenerateVariableWidthArc(shape, draft, angularSegments);
+        }
+
+        private static void GenerateRing(
+            VFXShapeSettings shape,
+            VFXMeshDraft draft,
+            bool partialArc)
         {
             var radialSegments = Segments(shape.radialSegments, 3);
             var radiusSegments = Segments(shape.widthSegments, 1);
@@ -203,7 +218,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var secondRadius = Positive(shape.radius);
             var innerRadius = Mathf.Min(firstRadius, secondRadius);
             var outerRadius = Mathf.Max(firstRadius, secondRadius);
-            var arcDegrees = partialArc ? SafeArc(shape.arcDegrees) : 360f;
+            var arcDegrees = partialArc ? SanitizeArcDegrees(shape.arcDegrees) : 360f;
             if (outerRadius - innerRadius < MinimumDimension)
             {
                 outerRadius = innerRadius + MinimumDimension;
@@ -250,6 +265,167 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
         }
 
+        private static void GenerateVariableWidthArc(
+            VFXShapeSettings shape,
+            VFXMeshDraft draft,
+            int angularSegments)
+        {
+            var radiusSegments = Segments(shape.widthSegments, 1);
+            var firstRadius = NonNegative(shape.innerRadius);
+            var secondRadius = Positive(shape.radius);
+            var innerRadius = Mathf.Min(firstRadius, secondRadius);
+            var outerRadius = Mathf.Max(firstRadius, secondRadius);
+            if (outerRadius - innerRadius < MinimumDimension)
+            {
+                outerRadius = innerRadius + MinimumDimension;
+            }
+
+            innerRadius = Mathf.Max(MinimumDimension, innerRadius);
+            var centerRadius = (innerRadius + outerRadius) * 0.5f;
+            var halfWidth = (outerRadius - innerRadius) * 0.5f;
+            var middleElevation = EvaluateRadialElevation(shape, 0.5f);
+            var arcRadians = Degrees(SanitizeArcDegrees(shape.arcDegrees));
+            var angleOffset = Degrees(shape.angleOffset);
+            var positiveWinding = arcRadians >= 0f;
+            var starts = new int[angularSegments + 1];
+            var collapsed = new bool[angularSegments + 1];
+
+            for (var segment = 0; segment <= angularSegments; segment++)
+            {
+                var angularT = segment / (float)angularSegments;
+                var widthFactor = EvaluateArcWidth(shape, angularT);
+                var angle = angleOffset + arcRadians * angularT;
+                var cosine = Mathf.Cos(angle);
+                var sine = Mathf.Sin(angle);
+                starts[segment] = draft.vertices.Count;
+                collapsed[segment] = widthFactor <= MinimumDimension;
+
+                if (collapsed[segment])
+                {
+                    draft.AddVertex(
+                        new Vector3(
+                            cosine * centerRadius,
+                            middleElevation,
+                            sine * centerRadius),
+                        new Vector2(angularT, 0.5f));
+                    continue;
+                }
+
+                var currentHalfWidth = halfWidth * widthFactor;
+                for (var ring = 0; ring <= radiusSegments; ring++)
+                {
+                    var radialT = ring / (float)radiusSegments;
+                    var ringRadius = Mathf.Lerp(
+                        centerRadius - currentHalfWidth,
+                        centerRadius + currentHalfWidth,
+                        radialT);
+                    var elevation = Mathf.Lerp(
+                        middleElevation,
+                        EvaluateRadialElevation(shape, radialT),
+                        widthFactor);
+                    draft.AddVertex(
+                        new Vector3(
+                            cosine * ringRadius,
+                            elevation,
+                            sine * ringRadius),
+                        new Vector2(angularT, radialT));
+                }
+            }
+
+            for (var segment = 0; segment < angularSegments; segment++)
+            {
+                AddVariableArcStrip(
+                    draft,
+                    starts[segment],
+                    collapsed[segment],
+                    starts[segment + 1],
+                    collapsed[segment + 1],
+                    radiusSegments,
+                    positiveWinding);
+            }
+        }
+
+        private static void AddVariableArcStrip(
+            VFXMeshDraft draft,
+            int currentStart,
+            bool currentCollapsed,
+            int nextStart,
+            bool nextCollapsed,
+            int radiusSegments,
+            bool positiveWinding)
+        {
+            if (currentCollapsed && nextCollapsed)
+            {
+                return;
+            }
+
+            for (var ring = 0; ring < radiusSegments; ring++)
+            {
+                if (currentCollapsed)
+                {
+                    if (positiveWinding)
+                    {
+                        draft.AddTriangle(currentStart, nextStart + ring, nextStart + ring + 1);
+                    }
+                    else
+                    {
+                        draft.AddTriangle(currentStart, nextStart + ring + 1, nextStart + ring);
+                    }
+                }
+                else if (nextCollapsed)
+                {
+                    if (positiveWinding)
+                    {
+                        draft.AddTriangle(currentStart + ring, nextStart, currentStart + ring + 1);
+                    }
+                    else
+                    {
+                        draft.AddTriangle(currentStart + ring, currentStart + ring + 1, nextStart);
+                    }
+                }
+                else
+                {
+                    var a = currentStart + ring;
+                    var b = a + 1;
+                    var c = nextStart + ring;
+                    var d = c + 1;
+                    if (positiveWinding)
+                    {
+                        draft.AddTriangle(a, c, b);
+                        draft.AddTriangle(b, c, d);
+                    }
+                    else
+                    {
+                        draft.AddTriangle(a, b, c);
+                        draft.AddTriangle(b, d, c);
+                    }
+                }
+            }
+        }
+
+        internal static bool UsesVariableArcWidthTopology(VFXShapeSettings shape)
+        {
+            return UsesVariableArcWidthTopology(
+                shape,
+                Segments(shape == null ? 0 : shape.radialSegments, 3));
+        }
+
+        private static bool UsesVariableArcWidthTopology(
+            VFXShapeSettings shape,
+            int angularSegments)
+        {
+            for (var segment = 0; segment <= angularSegments; segment++)
+            {
+                if (Mathf.Abs(EvaluateArcWidth(shape, segment / (float)angularSegments) - 1f) >
+                    MinimumDimension)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static void AddRadialStrip(
             VFXMeshDraft draft,
             int innerStart,
@@ -287,7 +463,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var heightSegments = Segments(shape.heightSegments, 1);
             var height = Positive(shape.height);
             var angleOffset = Degrees(shape.angleOffset);
-            var arcRadians = Degrees(SafeArc(shape.arcDegrees));
+            var arcRadians = Degrees(SanitizeArcDegrees(shape.arcDegrees));
             var positiveWinding = arcRadians >= 0f;
             var stride = radialSegments + 1;
             var rowRadii = new float[heightSegments + 1];
@@ -444,7 +620,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             var angleOffset = Degrees(shape.angleOffset);
-            var arcRadians = Degrees(SafeArc(shape.arcDegrees));
+            var arcRadians = Degrees(SanitizeArcDegrees(shape.arcDegrees));
             var positiveWinding = arcRadians >= 0f;
             var outerStarts = new int[heightSegments + 1];
             var innerStarts = new int[heightSegments + 1];
@@ -746,7 +922,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var tubeSegments = Segments(shape.radialSegments, 3);
             var majorRadius = Positive(shape.radius);
             var tubeRadius = Positive(shape.thickness);
-            var arcDegrees = SafeArc(shape.arcDegrees);
+            var arcDegrees = SanitizeArcDegrees(shape.arcDegrees);
             var arcRadians = Degrees(arcDegrees);
             var angleOffset = Degrees(shape.angleOffset);
             var positiveWinding = arcRadians >= 0f;
@@ -1213,6 +1389,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             return Finite(value, 0f);
         }
 
+        internal static float EvaluateArcWidth(VFXShapeSettings shape, float normalizedAngle)
+        {
+            var value = shape?.arcWidthCurve != null
+                ? shape.arcWidthCurve.Evaluate(Mathf.Clamp01(normalizedAngle))
+                : 1f;
+            return Mathf.Clamp01(Finite(value, 1f));
+        }
+
         private static float Positive(float value)
         {
             return Mathf.Max(MinimumDimension, Mathf.Abs(Finite(value, 1f)));
@@ -1223,7 +1407,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             return Mathf.Max(0f, Mathf.Abs(Finite(value, 0f)));
         }
 
-        private static float SafeArc(float value)
+        internal static float SanitizeArcDegrees(float value)
         {
             value = Mathf.Clamp(Finite(value, 360f), -360f, 360f);
             if (Mathf.Abs(value) < MinimumDimension)
