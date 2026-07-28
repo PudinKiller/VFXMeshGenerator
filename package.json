@@ -1,21 +1,27 @@
 {
   "name": "com.pudinkiller.vfx-mesh-generator",
-  "version": "0.3.1",
   "displayName": "VFX Mesh Generator",
-  "description": "Editor-only procedural mesh generator for Unity 6 URP VFX workflows.",
+  "version": "0.3.1",
   "unity": "6000.0",
-  "documentationUrl": "https://github.com/PudinKiller/VFXMeshGenerator",
-  "changelogUrl": "https://github.com/PudinKiller/VFXMeshGenerator/blob/main/CHANGELOG.md",
-  "licensesUrl": "https://github.com/PudinKiller/VFXMeshGenerator/blob/main/LICENSE.md",
+  "description": "A Unity 6 URP editor tool for generating and art-directing procedural meshes for real-time VFX workflows.",
+  "keywords": [
+    "unity",
+    "unity-editor",
+    "vfx",
+    "mesh",
+    "mesh-generation",
+    "procedural",
+    "urp",
+    "technical-art",
+    "vertex-data"
+  ],
   "author": {
     "name": "PudinKiller",
     "url": "https://github.com/PudinKiller"
   },
-  "keywords": [
-    "vfx",
-    "mesh",
-    "procedural",
-    "urp",
-    "editor"
-  ]
+  "documentationUrl": "https://github.com/PudinKiller/VFXMeshGenerator",
+  "changelogUrl": "https://github.com/PudinKiller/VFXMeshGenerator/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/PudinKiller/VFXMeshGenerator/blob/main/LICENSE.md",
+  "license": "MIT",
+  "type": "tool"
 }
