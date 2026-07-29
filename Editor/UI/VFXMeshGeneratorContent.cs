@@ -90,7 +90,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             "Curve time runs from inner edge or center (0) to outer edge (1). Values displace along Main Axis.");
         public static readonly GUIContent RadialVertexDistribution = Create(
             "Radial Vertex Distribution",
-            "Input is the evenly spaced radial row index; output is normalized center or inner-to-outer position. Use a rising curve from 0 to 1. Above the diagonal packs rows near the outer rim; below it packs rows near the inner rim. Endpoints stay fixed.");
+            "Input is the evenly spaced radial row index; output is normalized center or inner-to-outer position. Use a rising curve from 0 to 1. Above the diagonal packs rows near the outer rim; below it packs rows near the inner rim. Endpoints stay fixed. Shape Default UVs and the radial V coordinate keep the original row spacing, so redistributed rows stretch or compress the texture and can vary scrolling speed.");
         public static readonly GUIContent ArcWidthCurve = Create(
             "Angular Width Curve",
             "Curve time runs from arc start (0) to end (1). Values from 0 to 1 scale radial thickness around the selected Radial Width Origin.");
@@ -213,7 +213,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         public static readonly GUIContent UVProjection = Create(
             "Projection",
-            "Select how UV0 is generated after deformation. Shape Default preserves generator-authored UVs.");
+            "Select how UV0 is generated. Shape Default preserves generator-authored UVs. On Disc, Ring, and Arc, Radial projection derives angular U from the final mesh but keeps generator-authored radial V, so vertex distribution and later deformation stretch the texture instead of reprojecting it.");
         public static readonly GUIContent UVScale = Create(
             "Scale",
             "Multiply final UV coordinates. Values above 1 increase tiling.");
@@ -276,12 +276,21 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             "Bounds Padding",
             "Extra local-space distance added on every side of calculated bounds.");
 
-        public static readonly GUIContent Preset = Create("Preset", "A reusable copy of the complete generator recipe.");
+        public static readonly GUIContent ApplyBuiltInTemplate = Create(
+            "Apply Built-In Template...",
+            "Choose a package-provided starting point and replace the current recipe. Built-in templates remain unchanged.");
+        public static readonly GUIContent Preset = Create(
+            "Preset",
+            "A reusable copy of the complete generator recipe. Project presets can be edited; package presets are read-only.");
         public static readonly GUIContent LoadPreset = Create("Load", "Replace all current settings with the selected preset.");
         public static readonly GUIContent UpdatePreset = Create(
             "Update",
-            "Overwrite the selected preset with current settings.");
-        public static readonly GUIContent SavePreset = Create("Save New", "Create a new recipe preset asset.");
+            "Overwrite the selected editable project preset with current settings. Package templates are read-only.");
+        public static readonly GUIContent SavePreset = Create(
+            "Save New",
+            "Save the current recipe as an editable preset inside Assets.");
+        public const string ReadOnlyPresetMessage =
+            "Built-in and other package presets are read-only. Use Save New to create an editable project preset.";
         public static readonly GUIContent DefaultFolder = Create(
             "Default Folder",
             "Project folder used initially by mesh and preset save dialogs. Drag a folder from the Project window here. Assets are not saved automatically.");

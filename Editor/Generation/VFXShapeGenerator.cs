@@ -170,8 +170,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     draft.AddVertex(
                         new Vector3(cosine * ringRadius, elevation, sine * ringRadius),
                         new Vector2(
-                            0.5f + cosine * distributedT * 0.5f,
-                            0.5f + sine * distributedT * 0.5f));
+                            0.5f + cosine * radialT * 0.5f,
+                            0.5f + sine * radialT * 0.5f));
                 }
 
                 if (ring == 1)
@@ -294,7 +294,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                             Mathf.Cos(angle) * ringRadius,
                             elevation,
                             Mathf.Sin(angle) * ringRadius),
-                        new Vector2(angularT, distributedT));
+                        new Vector2(angularT, radialT));
                 }
             }
 
@@ -380,7 +380,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                             cosine * ringRadius,
                             elevation,
                             sine * ringRadius),
-                        new Vector2(angularT, distributedT));
+                        new Vector2(angularT, radialT));
                 }
             }
 

@@ -2,6 +2,19 @@
 
 All notable changes to VFX Mesh Generator are documented in this file.
 
+## 1.0.0 - 2026-07-29
+
+### Added
+
+- Added seven production-authored built-in templates: Cross Plane, Droplet, Fan, Shockwave, Slash, Spiral, and Splash.
+- Added an `Apply Built-In Template...` menu to load a template directly into the editor without locating package assets manually.
+- Added installed-package tests that load and generate every built-in template.
+
+### Changed
+
+- Package presets are now treated as read-only in the editor. Use `Save New` to create an editable project copy inside `Assets`.
+- Disc, Ring, and Arc now keep generator-authored radial V coordinates for Shape Default and Radial UV layouts while distribution curves and later modifiers move vertices, enabling stretched mappings and variable texture-scroll speed.
+
 ## 0.6.0 - 2026-07-28
 
 ### Added

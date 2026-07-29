@@ -1109,11 +1109,25 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
         private void DrawPresetControls()
         {
+            if (GUILayout.Button(VFXMeshGeneratorContent.ApplyBuiltInTemplate))
+            {
+                ShowBuiltInTemplateMenu(GUILayoutUtility.GetLastRect());
+            }
+
             selectedPreset = (VFXMeshRecipePreset)EditorGUILayout.ObjectField(
                 VFXMeshGeneratorContent.Preset,
                 selectedPreset,
                 typeof(VFXMeshRecipePreset),
                 false);
+
+            var canUpdatePreset =
+                VFXBuiltInTemplateLibrary.IsEditableProjectPreset(selectedPreset);
+            if (selectedPreset != null && !canUpdatePreset)
+            {
+                EditorGUILayout.HelpBox(
+                    VFXMeshGeneratorContent.ReadOnlyPresetMessage,
+                    MessageType.Info);
+            }
 
             EditorGUILayout.BeginHorizontal();
             using (new EditorGUI.DisabledScope(selectedPreset == null))
@@ -1125,7 +1139,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     ScheduleRebuild(0d);
                     GUIUtility.ExitGUI();
                 }
+            }
 
+            using (new EditorGUI.DisabledScope(!canUpdatePreset))
+            {
                 if (GUILayout.Button(VFXMeshGeneratorContent.UpdatePreset))
                 {
                     Undo.RecordObject(selectedPreset, "Update VFX Mesh Preset");
@@ -1140,6 +1157,41 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 SaveNewPreset();
             }
             EditorGUILayout.EndHorizontal();
+        }
+
+        private void ShowBuiltInTemplateMenu(Rect buttonRect)
+        {
+            var menu = new GenericMenu();
+            for (var index = 0;
+                 index < VFXBuiltInTemplateLibrary.Count;
+                 index++)
+            {
+                var templateIndex = index;
+                menu.AddItem(
+                    new GUIContent(
+                        VFXBuiltInTemplateLibrary.GetDisplayName(templateIndex)),
+                    false,
+                    () => ApplyBuiltInTemplate(templateIndex));
+            }
+
+            menu.DropDown(buttonRect);
+        }
+
+        private void ApplyBuiltInTemplate(int templateIndex)
+        {
+            var template = VFXBuiltInTemplateLibrary.Load(templateIndex);
+            if (template == null || template.recipe == null)
+            {
+                ShowNotification(
+                    new GUIContent("The selected built-in template could not be loaded."));
+                return;
+            }
+
+            selectedPreset = template;
+            AdoptRecipe(template.recipe);
+            SavePersistentState();
+            ScheduleRebuild(0d);
+            Repaint();
         }
 
         private void DrawAssetControls()

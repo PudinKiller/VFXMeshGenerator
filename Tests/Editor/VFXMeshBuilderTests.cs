@@ -416,7 +416,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         }
 
         [Test]
-        public void DiscRadialDistributionRemapsRadiusElevationAndShapeDefaultUV()
+        public void DiscRadialDistributionRemapsGeometryAndStretchesShapeDefaultUV()
         {
             var recipe = CreateRecipe(VFXMeshShapeType.Disc);
             recipe.shape.pivot = VFXPivot.Custom;
@@ -444,12 +444,217 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
 
                 Assert.That(RadialDistance(middle), Is.EqualTo(1.6f).Within(1e-5f));
                 Assert.That(middle.y, Is.EqualTo(0.8f).Within(1e-5f));
-                Assert.That(middleUV.x, Is.EqualTo(0.9f).Within(1e-5f));
+                Assert.That(middleUV.x, Is.EqualTo(0.75f).Within(1e-5f));
                 Assert.That(middleUV.y, Is.EqualTo(0.5f).Within(1e-5f));
                 Assert.That(
                     RadialDistance(result.mesh.vertices[result.mesh.vertexCount - stride]),
                     Is.EqualTo(recipe.shape.radius).Within(1e-5f),
                     "The distribution curve moved the fixed outer endpoint.");
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [TestCase(
+            VFXMeshShapeType.Disc,
+            VFXUVProjection.ShapeDefault)]
+        [TestCase(
+            VFXMeshShapeType.Disc,
+            VFXUVProjection.Radial)]
+        [TestCase(
+            VFXMeshShapeType.Ring,
+            VFXUVProjection.ShapeDefault)]
+        [TestCase(
+            VFXMeshShapeType.Ring,
+            VFXUVProjection.Radial)]
+        [TestCase(
+            VFXMeshShapeType.Arc,
+            VFXUVProjection.ShapeDefault)]
+        [TestCase(
+            VFXMeshShapeType.Arc,
+            VFXUVProjection.Radial)]
+        public void RadialDistributionMovesRowsWithoutMovingTheirRadialUVCoordinate(
+            VFXMeshShapeType shapeType,
+            VFXUVProjection projection)
+        {
+            var linearRecipe = CreateRecipe(shapeType);
+            linearRecipe.shape.pivot = VFXPivot.Custom;
+            linearRecipe.shape.customPivotOffset = Vector3.zero;
+            linearRecipe.shape.radius = 2f;
+            linearRecipe.shape.innerRadius = 1f;
+            linearRecipe.shape.radialSegments = 8;
+            linearRecipe.shape.widthSegments = 4;
+            linearRecipe.shape.radialDistributionCurve =
+                AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            linearRecipe.uv.projection = projection;
+
+            var distributedRecipe = linearRecipe.DeepCopy();
+            distributedRecipe.shape.radialDistributionCurve =
+                new AnimationCurve(
+                    new Keyframe(0f, 0f),
+                    new Keyframe(0.5f, 0.8f),
+                    new Keyframe(1f, 1f));
+
+            var linearResult = VFXMeshBuilder.Build(linearRecipe);
+            var distributedResult = VFXMeshBuilder.Build(distributedRecipe);
+            try
+            {
+                Assert.That(
+                    linearResult.succeeded,
+                    Is.True,
+                    linearResult.error);
+                Assert.That(
+                    distributedResult.succeeded,
+                    Is.True,
+                    distributedResult.error);
+
+                var stride = linearRecipe.shape.radialSegments + 1;
+                var middleRowStart = shapeType == VFXMeshShapeType.Disc
+                    ? 1 + stride
+                    : 2 * stride;
+                var linearRadius =
+                    RadialDistance(linearResult.mesh.vertices[middleRowStart]);
+                var distributedRadius =
+                    RadialDistance(distributedResult.mesh.vertices[middleRowStart]);
+                Assert.That(
+                    linearRadius,
+                    Is.EqualTo(
+                            shapeType == VFXMeshShapeType.Disc
+                                ? 1f
+                                : 1.5f)
+                        .Within(1e-5f));
+                Assert.That(
+                    distributedRadius,
+                    Is.EqualTo(
+                            shapeType == VFXMeshShapeType.Disc
+                                ? 1.6f
+                                : 1.8f)
+                        .Within(1e-5f));
+
+                var linearUV = linearResult.mesh.uv;
+                var distributedUV = distributedResult.mesh.uv;
+                Assert.That(
+                    distributedUV,
+                    Has.Length.EqualTo(linearUV.Length));
+                for (var vertex = 0; vertex < linearUV.Length; vertex++)
+                {
+                    if (projection == VFXUVProjection.ShapeDefault)
+                    {
+                        Assert.That(
+                            Vector2.Distance(
+                                distributedUV[vertex],
+                                linearUV[vertex]),
+                            Is.LessThan(1e-5f),
+                            $"Shape Default UV {vertex} moved with its radial row.");
+                    }
+                    else
+                    {
+                        Assert.That(
+                            distributedUV[vertex].y,
+                            Is.EqualTo(linearUV[vertex].y).Within(1e-5f),
+                            $"Radial UV {vertex} changed its radius coordinate.");
+                    }
+                }
+            }
+            finally
+            {
+                DestroyResult(linearResult);
+                DestroyResult(distributedResult);
+            }
+        }
+
+        [Test]
+        public void DiscRadialProjectionKeepsTopologyVWhenAModifierMovesRadialRows()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Disc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.radius = 2f;
+            recipe.shape.radialSegments = 8;
+            recipe.shape.widthSegments = 4;
+            recipe.uv.projection = VFXUVProjection.Radial;
+            recipe.modifiers.Add(
+                new VFXMeshModifierSettings
+                {
+                    type = VFXModifierType.RadialRipple,
+                    axis = VFXAxis.Y,
+                    space = VFXModifierSpace.Radial,
+                    strength = 0.5f,
+                    frequency = 0.5f,
+                    angle = 0f,
+                    falloff = AnimationCurve.Linear(0f, 1f, 1f, 1f)
+                });
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var stride = recipe.shape.radialSegments + 1;
+                var middleRowStart = 1 + stride;
+                var outerRowStart =
+                    1 + (recipe.shape.widthSegments - 1) * stride;
+                Assert.That(
+                    RadialDistance(result.mesh.vertices[middleRowStart]),
+                    Is.EqualTo(1.5f).Within(1e-5f));
+                Assert.That(
+                    RadialDistance(result.mesh.vertices[outerRowStart]),
+                    Is.EqualTo(recipe.shape.radius).Within(1e-5f));
+                Assert.That(
+                    result.mesh.uv[middleRowStart].y,
+                    Is.EqualTo(0.5f).Within(1e-5f));
+            }
+            finally
+            {
+                DestroyResult(result);
+            }
+        }
+
+        [Test]
+        public void MirroredDistributedArcCopiesRadialUVsToBothShells()
+        {
+            var recipe = CreateRecipe(VFXMeshShapeType.Arc);
+            recipe.shape.pivot = VFXPivot.Custom;
+            recipe.shape.customPivotOffset = Vector3.zero;
+            recipe.shape.innerRadius = 0.25f;
+            recipe.shape.radius = 1f;
+            recipe.shape.radialSegments = 8;
+            recipe.shape.widthSegments = 4;
+            recipe.shape.arcDegrees = 90f;
+            recipe.shape.angleOffset = 45f;
+            recipe.shape.mirrorArcAcrossShapePlane = true;
+            recipe.shape.radialDistributionCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.5f, 0.8f),
+                new Keyframe(1f, 1f));
+            recipe.shape.radialElevationCurve =
+                AnimationCurve.Linear(0f, 0.35f, 1f, 0f);
+            recipe.uv.projection = VFXUVProjection.Radial;
+
+            var result = VFXMeshBuilder.Build(recipe);
+            try
+            {
+                Assert.That(result.succeeded, Is.True, result.error);
+                var stride = recipe.shape.radialSegments + 1;
+                var shellVertexCount =
+                    (recipe.shape.widthSegments + 1) * stride;
+                var uv = result.mesh.uv;
+                Assert.That(uv.Length, Is.GreaterThanOrEqualTo(shellVertexCount * 2));
+
+                for (var vertex = 0; vertex < shellVertexCount; vertex++)
+                {
+                    Assert.That(
+                        Vector2.Distance(
+                            uv[vertex],
+                            uv[shellVertexCount + vertex]),
+                        Is.LessThan(1e-6f),
+                        $"Mirrored radial UV {vertex} differs from its source.");
+                }
+
+                Assert.That(
+                    uv[2 * stride].y,
+                    Is.EqualTo(0.5f).Within(1e-5f));
             }
             finally
             {
@@ -1773,8 +1978,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             }
         }
 
-        [Test]
-        public void VariableWidthArcUsesDistributedRadialRows()
+        [TestCase(VFXUVProjection.ShapeDefault)]
+        [TestCase(VFXUVProjection.Radial)]
+        public void VariableWidthArcUsesDistributedRowsAndStretchedUVs(
+            VFXUVProjection projection)
         {
             var recipe = CreateRecipe(VFXMeshShapeType.Arc);
             recipe.shape.pivot = VFXPivot.Custom;
@@ -1789,6 +1996,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 new Keyframe(0f, 0f),
                 new Keyframe(0.5f, 0.8f),
                 new Keyframe(1f, 1f));
+            recipe.uv.projection = projection;
 
             var result = VFXMeshBuilder.Build(recipe);
             try
@@ -1797,7 +2005,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 Assert.That(
                     RadialDistance(result.mesh.vertices[1]),
                     Is.EqualTo(0.92f).Within(1e-5f));
-                Assert.That(result.mesh.uv[1].y, Is.EqualTo(0.8f).Within(1e-5f));
+                Assert.That(result.mesh.uv[1].y, Is.EqualTo(0.5f).Within(1e-5f));
             }
             finally
             {

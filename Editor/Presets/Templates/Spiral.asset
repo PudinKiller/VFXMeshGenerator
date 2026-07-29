@@ -1,0 +1,189 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be24a16154802fe47a0dd23eb64f123f, type: 3}
+  m_Name: Spiral
+  m_EditorClassIdentifier: 
+  recipe:
+    meshName: VFXMesh
+    shapeType: 13
+    shape:
+      width: 0.5
+      length: 1
+      height: 1
+      radius: 0.5
+      innerRadius: 0.25
+      topRadius: 0
+      thickness: 0.1
+      size: {x: 1, y: 1, z: 1}
+      arcDegrees: 360
+      angleOffset: 0
+      turns: 3
+      pitch: 0.7
+      widthSegments: 1
+      lengthSegments: 16
+      heightSegments: 1
+      radialSegments: 24
+      longitudeSegments: 24
+      latitudeSegments: 12
+      planeCount: 2
+      capStart: 1
+      capEnd: 1
+      mirrorArcAcrossShapePlane: 0
+      arcWidthOrigin: 0
+      ribbonUVWidthMode: 0
+      axis: 1
+      pivot: 0
+      customPivotOffset: {x: 0, y: 0, z: 0}
+      widthCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 1
+          outSlope: 1
+          tangentMode: 34
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 1
+          outSlope: 1
+          tangentMode: 34
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      radialElevationCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 0
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      arcWidthCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    modifiers: []
+    uv:
+      projection: 0
+      scale: {x: 1, y: 1}
+      offset: {x: 0, y: 0}
+      rotation: 0
+      flipU: 0
+      flipV: 0
+      swapUV: 0
+    vertexData:
+      generateColors: 0
+      colorMode: 0
+      solidColor: {r: 1, g: 1, b: 1, a: 1}
+      colorGradient:
+        serializedVersion: 2
+        key0: {r: 1, g: 1, b: 1, a: 1}
+        key1: {r: 1, g: 1, b: 1, a: 1}
+        key2: {r: 0, g: 0, b: 0, a: 0}
+        key3: {r: 0, g: 0, b: 0, a: 0}
+        key4: {r: 0, g: 0, b: 0, a: 0}
+        key5: {r: 0, g: 0, b: 0, a: 0}
+        key6: {r: 0, g: 0, b: 0, a: 0}
+        key7: {r: 0, g: 0, b: 0, a: 0}
+        ctime0: 0
+        ctime1: 65535
+        ctime2: 0
+        ctime3: 0
+        ctime4: 0
+        ctime5: 0
+        ctime6: 0
+        ctime7: 0
+        atime0: 0
+        atime1: 65535
+        atime2: 0
+        atime3: 0
+        atime4: 0
+        atime5: 0
+        atime6: 0
+        atime7: 0
+        m_Mode: 0
+        m_ColorSpace: -1
+        m_NumColorKeys: 2
+        m_NumAlphaKeys: 2
+      gradientAxis: 1
+      generateUV1: 0
+      generateUV2: 0
+      generateUV3: 0
+      uv1:
+        x: 2
+        y: 3
+        z: 4
+        w: 1
+      uv2:
+        x: 2
+        y: 3
+        z: 4
+        w: 1
+      uv3:
+        x: 2
+        y: 3
+        z: 4
+        w: 1
+    output:
+      flipWinding: 1
+      doubleSided: 1
+      flatShading: 0
+      generateTangents: 1
+      readWriteEnabled: 1
+      optimizeMesh: 0
+      boundsPadding: 0
+      compression: 0
+      indexFormat: 0

@@ -3,72 +3,54 @@
 ![Unity](https://img.shields.io/badge/Unity-6%2B-black)
 ![Render Pipeline](https://img.shields.io/badge/Render%20Pipeline-URP-5b7fff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.6.0-orange)
+![Version](https://img.shields.io/badge/version-1.0.0-orange)
 
-A free and open-source Unity 6+ editor tool for generating and art-directing procedural meshes for real-time VFX workflows.
+A Unity 6+ URP editor tool for building VFX-ready meshes without leaving Unity.
 
-Create slashes, impact rings, beams, ribbons, cards, spirals, and other VFX-ready meshes without leaving Unity. Build a base shape, apply a non-destructive modifier stack, configure UV and vertex data, inspect the result, and save it as a native Unity `Mesh` asset.
+Start from 14 procedural shapes or seven included templates, art-direct the result with curves and ordered modifiers, inspect UVs and vertex data live, then generate or update a standard Unity `Mesh` asset. Generated meshes have no runtime package dependency.
 
 Made by [Ken Deng / PudinKiller](https://github.com/PudinKiller).
+
+[Installation](#installation) | [Quick Start](#quick-start) | [Common Workflows](#common-workflows) | [Shape Reference](#shape-reference) | [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Feature Demos
 
-> [!NOTE]
-> The demo areas below are placeholders. Replace them with your GIF links when the recordings are ready.
+### Shape and Modifier Workflow
+
+<p align="center">
+  <img src=".github/readme/ShapeModifiers.gif" width="760" alt="Increasing a Disc's resolution and tuning a Radial Ripple modifier in VFX Mesh Generator's live shaded-wireframe preview">
+  <br>
+  <sub>Build suitable topology, add an ordered modifier, and tune it with immediate preview feedback.</sub>
+</p>
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <b>GIF placeholder: Shape and Modifier Workflow</b>
-      <br>
-      <code>.github/readme/ShapeModifiers.gif</code>
+      <b>Built-In Templates</b>
       <br><br>
-      <sub>Choose a VFX shape, adjust its resolution, and build a layered modifier stack.</sub>
+      <img src=".github/readme/BuiltInTemplates.gif" width="100%" alt="VFX Mesh Generator cycling through its seven included mesh templates in Unity's shaded-wireframe preview">
+      <br>
+      <sub>Apply an included starting recipe, customize it, then save an editable project preset.</sub>
     </td>
     <td width="50%" align="center">
-      <b>GIF placeholder: Mirrored Arc Slash</b>
-      <br>
-      <code>.github/readme/MirroredArc.gif</code>
+      <b>Mirrored Arc Workflow</b>
       <br><br>
-      <sub>Shape a tapered Arc, add axial elevation, and mirror it into a volumetric slash shell.</sub>
+      <img src=".github/readme/MirroredArc.gif" width="100%" alt="Creating a tapered, elevated, mirrored Arc mesh with curve-driven controls in VFX Mesh Generator">
+      <br>
+      <sub>Shape and mirror a volumetric slash shell while keeping its outer rims joined.</sub>
     </td>
   </tr>
 </table>
-
-<details>
-<summary><b>Full workflow demo — GIF placeholder</b></summary>
-
-<br>
-
-Add the full workflow GIF here after recording it.
-
-Suggested path:
-
-```text
-.github/readme/Workflow.gif
-```
-
-Suggested alt text:
-
-```text
-VFX Mesh Generator full workflow demo
-```
-
-</details>
 
 ---
 
 ## Why This Exists
 
-Real-time VFX often needs small, specialized meshes: a curved slash, an impact ring, a tapered ribbon, a hollow beam, crossed smoke cards, or a mesh carrying custom data for a shader.
+Real-time VFX often depends on small, specialized meshes: a slash, impact ring, tapered ribbon, hollow beam, crossed cards, or geometry carrying shader data. Moving to a DCC for every adjustment can interrupt iteration and still leave UV direction, pivots, vertex data, winding, or output settings to fix afterward.
 
-These meshes are usually simple, but moving to Blender, Maya, Houdini, or another DCC for every small revision can interrupt iteration. The geometry may then need another pass for UV direction, pivots, vertex colors, additional data channels, winding, or double-sided output before it is ready for an effect.
-
-**VFX Mesh Generator is not trying to replace a full modeling package.**
-
-It is a focused Unity editor utility for the procedural VFX meshes that need to be created, adjusted, previewed, and regenerated quickly during production.
+VFX Mesh Generator is deliberately focused rather than a replacement for a full modeling package: it keeps common procedural VFX mesh creation, inspection, and regeneration inside the Unity editor.
 
 ---
 
@@ -76,19 +58,16 @@ It is a focused Unity editor utility for the procedural VFX meshes that need to 
 
 | Feature | What it is useful for |
 |---|---|
-| 14 procedural base shapes | Start from common VFX geometry instead of an empty modeling scene |
-| Ordered modifier stack | Layer transform, taper, twist, bend, wave, ripple, noise, and other deformations |
-| Curve-driven profiles | Scale strips, volumes, spheres, torus tubes, and box cross-sections; shape radial elevation and vertex distribution |
-| Mirrored Arc shells | Build paired slash or crescent shells with matching UV direction |
-| UV projection tools | Generate planar, radial, cylindrical, spherical, along-length, or box UV0 |
-| VFX vertex data | Write colors and packed `Vector4` data into UV1, UV2, and UV3 |
-| Live diagnostic preview | Inspect shading, UVs, normals, vertex colors, wireframe, and backfaces |
-| Reusable recipe presets | Save, load, and update complete generator configurations |
+| 14 procedural shapes | Start from common VFX geometry instead of an empty modeling scene |
+| Curves and ordered modifiers | Shape profiles, distribute vertices, and layer transform, taper, twist, bend, wave, ripple, noise, and other deformations |
+| VFX-focused Arc tools | Taper, elevate, redistribute, and mirror slash or crescent shells while keeping their outer rims joined |
+| UV and shader-data authoring | Generate UV0 projections, vertex colors, and packed `Vector4` data in UV1, UV2, and UV3 |
+| Live diagnostic preview | Inspect shading, UVs, normals, vertex colors, wireframe, topology, and red backfaces |
+| Templates and reusable presets | Start from seven included recipes or save complete custom generator setups |
 | Native Mesh output | Create standalone `.asset` meshes with no runtime package dependency |
-| Reference-preserving updates | Regenerate an existing Mesh asset while preserving its GUID and references |
-| Project-scoped persistence | Restore independent settings per shape, output folder, preview preferences, and foldouts |
-| Active-shape reset | Restore one shape profile without touching modifiers, UVs, output, or other remembered shapes |
-| Editor safety limits | Reject excessive topology before synchronous generation begins |
+| Reference-preserving updates | Regenerate an existing Mesh asset while preserving its GUID and project references |
+| Persistent workspace | Restore independent settings per shape, output folder, preview preferences, foldouts, and presets |
+| Guarded editor workflow | Reset only the active shape and reject excessive topology before synchronous generation begins |
 
 ---
 
@@ -119,10 +98,10 @@ In Unity:
 4. Paste:
 
 ```text
-https://github.com/PudinKiller/VFXMeshGenerator.git#v0.6.0
+https://github.com/PudinKiller/VFXMeshGenerator.git#v1.0.0
 ```
 
-Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v0.6.0`.
+Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v1.0.0`.
 
 <details>
 <summary><b>Install without Git</b></summary>
@@ -161,21 +140,13 @@ Open the tool from:
 Tools > VFX Mesh Generator
 ```
 
-Basic workflow:
-
-1. Enter a Mesh Name.
-2. Choose a base Shape.
-3. Adjust its dimensions, resolution, Main Axis, and Pivot.
-4. Add and reorder any modifiers.
-5. Configure UV0 and optional VFX Vertex Data.
-6. Inspect the live preview and topology statistics.
-7. Choose Mesh Output settings.
-8. Click `Generate New` to create a Mesh asset.
-
-To regenerate an asset later, assign it to `Update Mesh` and click `Update Existing`.
-
-> [!TIP]
-> Save the complete setup as a recipe preset before experimenting with a major variation.
+1. Apply a built-in template or choose a procedural Shape.
+2. Adjust the shape profile and add any ordered modifiers.
+3. Configure UV0 and the vertex-data channels required by the shader.
+4. Inspect the result in `Shaded Wireframe` or `UV Checker` view.
+5. Set the Mesh Name, output folder, and Mesh Output options.
+6. Click `Generate New`, then save the setup as a recipe preset if you want to reuse it.
+7. Later, assign the asset to `Update Mesh` and use `Update Existing` to regenerate it without breaking references.
 
 ---
 
@@ -238,7 +209,7 @@ Double Sided: Enable only when independently lit backfaces are required
 
 The Angular Width Curve scales radial thickness around the selected origin. `Outer Rim` moves only the inner radius, `Middle` moves both radii evenly, and `Inner Rim` moves only the outer radius. A zero curve value collapses the strip to the selected radial origin. Axial elevation remains referenced to the outer rim so mirrored shells stay joined.
 
-Use `Radial Vertex Distribution` to move intermediate radial rows without changing either rim. A curve above the diagonal concentrates rows near the outer rim.
+Use `Radial Vertex Distribution` to move intermediate radial rows without changing either rim. A curve above the diagonal concentrates rows near the outer rim. Shape Default and Radial UVs retain their original row coordinates, so the moved geometry stretches or compresses the texture mapping.
 
 `Mirror Across Shape Plane` creates a disconnected reflected shell with matching UVs and aligns both shells at the outer rim. It is different from `Double Sided`, which duplicates reversed faces at the same positions.
 
@@ -258,7 +229,7 @@ Radial Vertex Distribution: Bias rows toward the inner or outer rim
 Axial Elevation Curve: Push the surface along Main Axis
 ```
 
-The distribution curve remaps vertex positions only: the center and outer boundary remain fixed. Keep it rising from 0 to 1; place it above the diagonal to pack more rows near the outer rim.
+The distribution curve remaps vertex positions while the original Shape Default and Radial UV row coordinates remain fixed. This stretches the texture between moved rows and can make an outward texture scroll start fast and slow near the rim. Keep the curve rising from 0 to 1; place it above the diagonal to pack more rows near the outer rim. Increase Radial Resolution for a smoother speed transition.
 
 </details>
 
@@ -276,6 +247,8 @@ Radial Vertex Distribution: Control inner-to-outer row density
 ```
 
 Try a radial or shape-default UV layout depending on how the shader samples its texture.
+
+Both layouts preserve the undistributed inner-to-outer row coordinate when Radial Vertex Distribution moves geometry, allowing non-uniform texture scrolling without editing UVs separately.
 
 Use vertex colors or a packed UV channel to store normalized radial distance for masks, erosion, displacement, or timing offsets.
 
@@ -420,7 +393,7 @@ Noise also provides Seed, Octaves, Lacunarity, Persistence, sampling offset, and
 
 ## UV0
 
-UV0 is generated after deformation unless `Shape Default` is selected.
+UV0 is generated after deformation unless `Shape Default` is selected. Disc, Ring, and Arc use a deliberate mixed `Radial` mapping: angular U is projected from the final mesh, while radial V always uses the generator-authored inner-to-outer row coordinate. Radial Vertex Distribution and later vertex modifiers therefore stretch or compress V instead of reprojecting it.
 
 Available projections:
 
@@ -539,11 +512,24 @@ A `VFX Mesh Recipe Preset` stores the complete generator setup:
 - Vertex colors and packed UV channels
 - Mesh output settings
 
+Seven built-in starting points ship with the package:
+
+- `Cross Plane`
+- `Droplet`
+- `Fan`
+- `Shockwave`
+- `Slash`
+- `Spiral`
+- `Splash`
+
 Preset controls:
 
+- `Apply Built-In Template...`: choose a packaged starting point and replace the current recipe
 - `Load`: replace the current recipe with the selected preset
-- `Update`: overwrite the selected preset with the current recipe
-- `Save New`: create a new preset asset
+- `Update`: overwrite the selected editable project preset with the current recipe
+- `Save New`: create an editable preset asset inside `Assets`
+
+Built-in and other package presets are read-only. Apply one, adjust any settings you want, then use `Save New` to keep an editable project copy.
 
 The editor also restores project-scoped working state, including independent parameters for each shape mode, the current recipe, output folder, preview mode, custom checker texture, preview background, modifier selection, foldouts, and selected preset.
 
@@ -702,7 +688,6 @@ Both options expand topology after the base shape is generated.
 
 Possible future improvements:
 
-- Example recipe presets
 - Sample shaders and VFX Graph workflows
 - More VFX-specific base shapes and deformation controls
 - Recipe import and export
@@ -749,6 +734,7 @@ VFXMeshGenerator/
     Generation/
     IO/
     Presets/
+      Templates/
     Preview/
     Processing/
     Shaders/

@@ -34,11 +34,21 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 var projectionVertexCount = mirrorsArc
                     ? vertexCount / 2
                     : vertexCount;
+                var radialRowCoordinates =
+                    settings.projection == VFXUVProjection.Radial
+                        ? CaptureRadialRowCoordinates(
+                            recipe,
+                            draft,
+                            projectionVertexCount)
+                        : null;
                 Project(
                     recipe,
                     draft,
                     settings.projection,
                     projectionVertexCount);
+                RestoreRadialRowCoordinates(
+                    draft,
+                    radialRowCoordinates);
                 if (mirrorsArc)
                 {
                     CopyMirroredArcUVs(draft, projectionVertexCount);
@@ -61,6 +71,87 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             {
                 draft.uv0[i] = Transform(draft.uv0[i], settings);
             }
+        }
+
+        private static float[] CaptureRadialRowCoordinates(
+            VFXMeshRecipe recipe,
+            VFXMeshDraft draft,
+            int vertexCount)
+        {
+            if (recipe == null ||
+                (recipe.shapeType != VFXMeshShapeType.Disc &&
+                 recipe.shapeType != VFXMeshShapeType.Ring &&
+                 recipe.shapeType != VFXMeshShapeType.Arc) ||
+                draft == null ||
+                vertexCount <= 0 ||
+                draft.uv0.Count < vertexCount)
+            {
+                return null;
+            }
+
+            var usesDiscTopology = UsesDiscTopology(recipe);
+            var coordinates = new float[vertexCount];
+            for (var vertex = 0; vertex < vertexCount; vertex++)
+            {
+                // Shape-default UVs retain the pre-deformation row coordinate.
+                // Radial projection reuses it for V while Project still derives U
+                // from the final mesh.
+                var shapeDefaultUV = draft.uv0[vertex];
+                coordinates[vertex] = usesDiscTopology
+                    ? Mathf.Clamp01(
+                        Vector2.Distance(
+                            shapeDefaultUV,
+                            new Vector2(0.5f, 0.5f)) *
+                        2f)
+                    : Mathf.Clamp01(shapeDefaultUV.y);
+            }
+
+            return coordinates;
+        }
+
+        private static void RestoreRadialRowCoordinates(
+            VFXMeshDraft draft,
+            IReadOnlyList<float> radialRowCoordinates)
+        {
+            if (draft == null || radialRowCoordinates == null)
+            {
+                return;
+            }
+
+            var count = Mathf.Min(
+                draft.uv0.Count,
+                radialRowCoordinates.Count);
+            for (var vertex = 0; vertex < count; vertex++)
+            {
+                var uv = draft.uv0[vertex];
+                uv.y = radialRowCoordinates[vertex];
+                draft.uv0[vertex] = uv;
+            }
+        }
+
+        private static bool UsesDiscTopology(VFXMeshRecipe recipe)
+        {
+            if (recipe?.shapeType == VFXMeshShapeType.Disc)
+            {
+                return true;
+            }
+
+            if (recipe?.shape == null ||
+                (recipe.shapeType != VFXMeshShapeType.Ring &&
+                 recipe.shapeType != VFXMeshShapeType.Arc))
+            {
+                return false;
+            }
+
+            var innerRadius = recipe.shape.innerRadius;
+            var zeroInnerRadius =
+                float.IsNaN(innerRadius) ||
+                float.IsInfinity(innerRadius) ||
+                Mathf.Abs(innerRadius) < 0.0001f;
+            return zeroInnerRadius &&
+                   (recipe.shapeType != VFXMeshShapeType.Arc ||
+                    !VFXShapeGenerator.UsesVariableArcWidthTopology(
+                        recipe.shape));
         }
 
         private static bool IsAngularProjection(VFXUVProjection projection)
@@ -450,24 +541,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 return fallbackCenter;
             }
 
-            var shape = recipe?.shape;
-            var usesCenterVertex = recipe?.shapeType == VFXMeshShapeType.Disc;
-            if ((recipe?.shapeType == VFXMeshShapeType.Ring ||
-                 recipe?.shapeType == VFXMeshShapeType.Arc) &&
-                shape != null)
-            {
-                var innerRadius = shape.innerRadius;
-                var zeroInnerRadius =
-                    float.IsNaN(innerRadius) ||
-                    float.IsInfinity(innerRadius) ||
-                    Mathf.Abs(innerRadius) < 0.0001f;
-                usesCenterVertex |=
-                    zeroInnerRadius &&
-                    (recipe.shapeType != VFXMeshShapeType.Arc ||
-                     !VFXShapeGenerator.UsesVariableArcWidthTopology(shape));
-            }
-
-            return usesCenterVertex
+            return UsesDiscTopology(recipe)
                 ? draft.vertices[0]
                 : fallbackCenter;
         }
