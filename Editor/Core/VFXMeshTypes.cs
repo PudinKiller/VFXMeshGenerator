@@ -1,6 +1,6 @@
 using System;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     public enum VFXMeshShapeType
     {

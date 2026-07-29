@@ -2,11 +2,11 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor.Tests
+namespace PudinKiller.VFXMeshLab.Editor.Tests
 {
     public sealed class VFXMeshAssetWriterTests
     {
-        private const string TestFolder = "Assets/__VFXMeshGeneratorTests";
+        private const string TestFolder = "Assets/__VFXMeshLabTests";
         private const string TestPath = TestFolder + "/Generated.asset";
 
         [SetUp]
@@ -14,7 +14,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         {
             if (!AssetDatabase.IsValidFolder(TestFolder))
             {
-                AssetDatabase.CreateFolder("Assets", "__VFXMeshGeneratorTests");
+                AssetDatabase.CreateFolder("Assets", "__VFXMeshLabTests");
             }
         }
 

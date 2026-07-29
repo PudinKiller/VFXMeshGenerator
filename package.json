@@ -1,6 +1,6 @@
 {
-  "name": "com.pudinkiller.vfx-mesh-generator",
-  "displayName": "VFX Mesh Generator",
+  "name": "com.pudinkiller.vfx-mesh-lab",
+  "displayName": "VFX Mesh Lab",
   "version": "1.0.0",
   "unity": "6000.0",
   "description": "A Unity 6 URP editor tool for generating and art-directing procedural meshes for real-time VFX workflows.",
@@ -19,9 +19,9 @@
     "name": "PudinKiller",
     "url": "https://github.com/PudinKiller"
   },
-  "documentationUrl": "https://github.com/PudinKiller/VFXMeshGenerator",
-  "changelogUrl": "https://github.com/PudinKiller/VFXMeshGenerator/blob/main/CHANGELOG.md",
-  "licensesUrl": "https://github.com/PudinKiller/VFXMeshGenerator/blob/main/LICENSE.md",
+  "documentationUrl": "https://github.com/PudinKiller/VFXMeshLab",
+  "changelogUrl": "https://github.com/PudinKiller/VFXMeshLab/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/PudinKiller/VFXMeshLab/blob/main/LICENSE.md",
   "license": "MIT",
   "type": "tool"
 }

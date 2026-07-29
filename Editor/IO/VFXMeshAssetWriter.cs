@@ -3,7 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     public sealed class VFXMeshAssetWriteResult
     {

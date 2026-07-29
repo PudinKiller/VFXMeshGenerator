@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PudinKiller.VFXMeshGenerator.Editor.Tests
+namespace PudinKiller.VFXMeshLab.Editor.Tests
 {
     public sealed class VFXMeshBuilderTests
     {
@@ -2188,7 +2188,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 source.RecalculateBounds();
 
                 var previewControllerType = typeof(VFXMeshBuilder).Assembly.GetType(
-                    "PudinKiller.VFXMeshGenerator.Editor.VFXMeshPreviewController",
+                    "PudinKiller.VFXMeshLab.Editor.VFXMeshPreviewController",
                     true);
                 var createOverlay = previewControllerType.GetMethod(
                     "CreateWireframeOverlayMesh",
@@ -2254,7 +2254,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         public void PreviewControllerBindsAndClearsCustomCheckerTexture()
         {
             var previewControllerType = typeof(VFXMeshBuilder).Assembly.GetType(
-                "PudinKiller.VFXMeshGenerator.Editor.VFXMeshPreviewController",
+                "PudinKiller.VFXMeshLab.Editor.VFXMeshPreviewController",
                 true);
             var constructor = previewControllerType.GetConstructor(
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
@@ -2311,7 +2311,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         [Test]
         public void ResetCurrentShapeProfilePreservesOtherProfilesAndRecipeSettings()
         {
-            var windowType = typeof(VFXMeshGeneratorWindow);
+            var windowType = typeof(VFXMeshLabWindow);
             var switchShape = windowType.GetMethod(
                 "SwitchShape",
                 BindingFlags.Instance | BindingFlags.NonPublic);
@@ -2333,13 +2333,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             Assert.That(shapeSettingsField, Is.Not.Null);
             Assert.That(persistentStateKeyField, Is.Not.Null);
 
-            VFXMeshGeneratorWindow window = null;
+            VFXMeshLabWindow window = null;
             try
             {
-                window = ScriptableObject.CreateInstance<VFXMeshGeneratorWindow>();
+                window = ScriptableObject.CreateInstance<VFXMeshLabWindow>();
                 persistentStateKeyField.SetValue(
                     window,
-                    "com.pudinkiller.vfx-mesh-generator.reset-test." +
+                    "com.pudinkiller.vfx-mesh-lab.reset-test." +
                     Guid.NewGuid().ToString("N"));
                 var recipe = new VFXMeshRecipe
                 {
@@ -2400,7 +2400,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         [Test]
         public void WindowPersistsIndependentShapeSettingsAndAdoptsOnlyPresetShape()
         {
-            var windowType = typeof(VFXMeshGeneratorWindow);
+            var windowType = typeof(VFXMeshLabWindow);
             var buildStateKey = windowType.GetMethod(
                 "BuildPersistentStateKey",
                 BindingFlags.Static | BindingFlags.NonPublic);
@@ -2446,10 +2446,10 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 (buildStateKey.Invoke(null, null) as string) +
                 ".test." +
                 Guid.NewGuid().ToString("N");
-            VFXMeshGeneratorWindow window = null;
+            VFXMeshLabWindow window = null;
             try
             {
-                window = ScriptableObject.CreateInstance<VFXMeshGeneratorWindow>();
+                window = ScriptableObject.CreateInstance<VFXMeshLabWindow>();
                 persistentStateKeyField.SetValue(window, stateKey);
                 recipeField.SetValue(window, new VFXMeshRecipe());
                 shapeSettingsField.SetValue(
@@ -2509,7 +2509,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
 
                 savePersistentState.Invoke(window, null);
                 UnityEngine.Object.DestroyImmediate(window);
-                window = ScriptableObject.CreateInstance<VFXMeshGeneratorWindow>();
+                window = ScriptableObject.CreateInstance<VFXMeshLabWindow>();
                 persistentStateKeyField.SetValue(window, stateKey);
                 loadPersistentState.Invoke(window, null);
                 ensureRecipeState.Invoke(window, null);
@@ -2542,7 +2542,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         public void ShadedWireframeMaterialDepthTestsWithoutForwardBias()
         {
             var previewControllerType = typeof(VFXMeshBuilder).Assembly.GetType(
-                "PudinKiller.VFXMeshGenerator.Editor.VFXMeshPreviewController",
+                "PudinKiller.VFXMeshLab.Editor.VFXMeshPreviewController",
                 true);
             var constructor = previewControllerType.GetConstructor(
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,

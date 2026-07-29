@@ -4,12 +4,12 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor.Tests
+namespace PudinKiller.VFXMeshLab.Editor.Tests
 {
     public sealed class VFXBuiltInTemplateTests
     {
         private const string TemplateRoot =
-            "Packages/com.pudinkiller.vfx-mesh-generator/Editor/Presets/Templates";
+            "Packages/com.pudinkiller.vfx-mesh-lab/Editor/Presets/Templates";
 
         [TestCase("CrossPlane", VFXMeshShapeType.CrossPlanes)]
         [TestCase("Droplet", VFXMeshShapeType.Hemisphere)]
@@ -54,8 +54,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         [Test]
         public void CatalogContainsTheSevenAuthoredTemplatesInOrder()
         {
-            var libraryType = typeof(VFXMeshGeneratorWindow).Assembly.GetType(
-                "PudinKiller.VFXMeshGenerator.Editor.VFXBuiltInTemplateLibrary");
+            var libraryType = typeof(VFXMeshLabWindow).Assembly.GetType(
+                "PudinKiller.VFXMeshLab.Editor.VFXBuiltInTemplateLibrary");
             var countProperty = libraryType?.GetProperty(
                 "Count",
                 BindingFlags.Static | BindingFlags.NonPublic);
@@ -112,7 +112,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 TemplateRoot + "/Slash.asset");
             Assert.That(source, Is.Not.Null);
             var sourceRadius = source.recipe.shape.radius;
-            var windowType = typeof(VFXMeshGeneratorWindow);
+            var windowType = typeof(VFXMeshLabWindow);
             var applyTemplate = windowType.GetMethod(
                 "ApplyBuiltInTemplate",
                 BindingFlags.Instance | BindingFlags.NonPublic);
@@ -131,12 +131,12 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
             Assert.That(persistentStateKeyField, Is.Not.Null);
 
             var stateKey =
-                "com.pudinkiller.vfx-mesh-generator.template-test." +
+                "com.pudinkiller.vfx-mesh-lab.template-test." +
                 Guid.NewGuid().ToString("N");
-            VFXMeshGeneratorWindow window = null;
+            VFXMeshLabWindow window = null;
             try
             {
-                window = ScriptableObject.CreateInstance<VFXMeshGeneratorWindow>();
+                window = ScriptableObject.CreateInstance<VFXMeshLabWindow>();
                 persistentStateKeyField.SetValue(window, stateKey);
                 applyTemplate.Invoke(window, new object[] { 4 });
 
@@ -167,8 +167,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
         [Test]
         public void OnlyProjectPresetsCanBeUpdated()
         {
-            var libraryType = typeof(VFXMeshGeneratorWindow).Assembly.GetType(
-                "PudinKiller.VFXMeshGenerator.Editor.VFXBuiltInTemplateLibrary");
+            var libraryType = typeof(VFXMeshLabWindow).Assembly.GetType(
+                "PudinKiller.VFXMeshLab.Editor.VFXBuiltInTemplateLibrary");
             var isEditable = libraryType?.GetMethod(
                 "IsEditableProjectPreset",
                 BindingFlags.Static | BindingFlags.NonPublic);
@@ -183,7 +183,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor.Tests
                 Is.False);
 
             var editablePath =
-                "Assets/VFXMeshGeneratorEditablePresetTest_" +
+                "Assets/VFXMeshLabEditablePresetTest_" +
                 Guid.NewGuid().ToString("N") +
                 ".asset";
             var editablePreset =

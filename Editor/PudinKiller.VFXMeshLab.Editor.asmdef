@@ -1,6 +1,6 @@
 {
-  "name": "PudinKiller.VFXMeshGenerator.Editor",
-  "rootNamespace": "PudinKiller.VFXMeshGenerator.Editor",
+  "name": "PudinKiller.VFXMeshLab.Editor",
+  "rootNamespace": "PudinKiller.VFXMeshLab.Editor",
   "references": [],
   "includePlatforms": [
     "Editor"

@@ -1,8 +1,8 @@
 {
-  "name": "PudinKiller.VFXMeshGenerator.Editor.Tests",
-  "rootNamespace": "PudinKiller.VFXMeshGenerator.Editor.Tests",
+  "name": "PudinKiller.VFXMeshLab.Editor.Tests",
+  "rootNamespace": "PudinKiller.VFXMeshLab.Editor.Tests",
   "references": [
-    "PudinKiller.VFXMeshGenerator.Editor"
+    "PudinKiller.VFXMeshLab.Editor"
   ],
   "includePlatforms": [
     "Editor"

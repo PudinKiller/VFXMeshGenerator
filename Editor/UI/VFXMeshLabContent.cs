@@ -1,8 +1,8 @@
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
-    internal static class VFXMeshGeneratorContent
+    internal static class VFXMeshLabContent
     {
         public static readonly GUIContent PreviewMode = Create(
             string.Empty,

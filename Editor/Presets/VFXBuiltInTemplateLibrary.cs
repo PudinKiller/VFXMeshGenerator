@@ -1,12 +1,12 @@
 using System;
 using UnityEditor;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     internal static class VFXBuiltInTemplateLibrary
     {
         internal const string TemplateRoot =
-            "Packages/com.pudinkiller.vfx-mesh-generator/Editor/Presets/Templates";
+            "Packages/com.pudinkiller.vfx-mesh-lab/Editor/Presets/Templates";
 
         private static readonly string[] DisplayNames =
         {

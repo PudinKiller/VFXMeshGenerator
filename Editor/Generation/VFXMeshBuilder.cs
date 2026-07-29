@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     /// <summary>
     /// The complete result of generating a preview mesh. The mesh remains readable so the

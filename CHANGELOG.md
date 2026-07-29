@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to VFX Mesh Generator are documented in this file.
+All notable changes to VFX Mesh Lab are documented in this file.
 
 ## 1.0.0 - 2026-07-29
 

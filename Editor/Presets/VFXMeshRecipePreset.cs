@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     public sealed class VFXMeshRecipePreset : ScriptableObject
     {

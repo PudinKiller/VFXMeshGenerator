@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     /// <summary>
     /// Builds UV0 and all optional shader-facing vertex streams configured by the recipe.

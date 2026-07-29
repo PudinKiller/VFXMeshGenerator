@@ -4,9 +4,9 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
-    public sealed class VFXMeshGeneratorWindow : EditorWindow
+    public sealed class VFXMeshLabWindow : EditorWindow
     {
         private const float ToolbarHeight = 24f;
         private const float MinimumSettingsWidth = 350f;
@@ -14,7 +14,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private const int PersistentStateVersion = 1;
         private const double PersistentStateSaveDelay = 0.2d;
         private const string PersistentStateKeyPrefix =
-            "com.pudinkiller.vfx-mesh-generator.window-state.";
+            "com.pudinkiller.vfx-mesh-lab.window-state.";
 
         [Serializable]
         private sealed class ShapeSettingsEntry
@@ -72,11 +72,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private bool persistentStateSavePending;
         private double persistentStateSaveTime;
 
-        [MenuItem("Tools/VFX Mesh Generator")]
+        [MenuItem("Tools/VFX Mesh Lab")]
         public static void Open()
         {
-            var window = GetWindow<VFXMeshGeneratorWindow>();
-            window.titleContent = new GUIContent("VFX Mesh Generator");
+            var window = GetWindow<VFXMeshLabWindow>();
+            window.titleContent = new GUIContent("VFX Mesh Lab");
             window.minSize = new Vector2(820f, 560f);
             window.Show();
         }
@@ -144,7 +144,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private void DrawToolbar()
         {
             GUILayout.BeginHorizontal(EditorStyles.toolbar, GUILayout.Height(ToolbarHeight));
-            GUILayout.Label("VFX Mesh Generator", EditorStyles.boldLabel);
+            GUILayout.Label("VFX Mesh Lab", EditorStyles.boldLabel);
             GUILayout.FlexibleSpace();
 
             var selectedPreviewMode = (VFXPreviewMode)EditorGUILayout.EnumPopup(
@@ -156,13 +156,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 previewMode = selectedPreviewMode;
                 QueuePersistentStateSave();
             }
-            DrawTooltipOverLastControl(VFXMeshGeneratorContent.PreviewMode);
+            DrawTooltipOverLastControl(VFXMeshLabContent.PreviewMode);
 
             if (previewMode == VFXPreviewMode.UVChecker)
             {
                 GUILayout.Space(4f);
                 GUILayout.Label(
-                    VFXMeshGeneratorContent.CheckerTexture,
+                    VFXMeshLabContent.CheckerTexture,
                     EditorStyles.miniLabel,
                     GUILayout.Width(48f));
                 EditorGUI.BeginChangeCheck();
@@ -177,11 +177,11 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     QueuePersistentStateSave();
                     Repaint();
                 }
-                DrawTooltipOverLastControl(VFXMeshGeneratorContent.CheckerTexture);
+                DrawTooltipOverLastControl(VFXMeshLabContent.CheckerTexture);
             }
 
             if (GUILayout.Button(
-                    VFXMeshGeneratorContent.FrontView,
+                    VFXMeshLabContent.FrontView,
                     EditorStyles.toolbarButton,
                     GUILayout.Width(44f)))
             {
@@ -190,7 +190,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             if (GUILayout.Button(
-                    VFXMeshGeneratorContent.SideView,
+                    VFXMeshLabContent.SideView,
                     EditorStyles.toolbarButton,
                     GUILayout.Width(42f)))
             {
@@ -199,7 +199,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             if (GUILayout.Button(
-                    VFXMeshGeneratorContent.TopView,
+                    VFXMeshLabContent.TopView,
                     EditorStyles.toolbarButton,
                     GUILayout.Width(38f)))
             {
@@ -208,7 +208,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             if (GUILayout.Button(
-                    VFXMeshGeneratorContent.FrameView,
+                    VFXMeshLabContent.FrameView,
                     EditorStyles.toolbarButton,
                     GUILayout.Width(48f)))
             {
@@ -226,13 +226,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
             EditorGUI.BeginChangeCheck();
 
-            recipe.meshName = EditorGUILayout.TextField(VFXMeshGeneratorContent.MeshName, recipe.meshName);
+            recipe.meshName = EditorGUILayout.TextField(VFXMeshLabContent.MeshName, recipe.meshName);
             EditorGUILayout.BeginHorizontal();
             var selectedShape = (VFXMeshShapeType)EditorGUILayout.EnumPopup(
-                VFXMeshGeneratorContent.Shape,
+                VFXMeshLabContent.Shape,
                 recipe.shapeType);
             if (GUILayout.Button(
-                    VFXMeshGeneratorContent.ResetShapeProfile,
+                    VFXMeshLabContent.ResetShapeProfile,
                     GUILayout.Width(52f)))
             {
                 ResetCurrentShapeProfile();
@@ -320,37 +320,37 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     settings.width = PositiveFloat(new GUIContent("Width"), settings.width);
                     settings.length = PositiveFloat(new GUIContent("Length"), settings.length);
                     settings.widthSegments = SegmentField(
-                        VFXMeshGeneratorContent.WidthSegments,
+                        VFXMeshLabContent.WidthSegments,
                         settings.widthSegments,
                         1);
                     settings.lengthSegments = SegmentField(
-                        VFXMeshGeneratorContent.LengthSegments,
+                        VFXMeshLabContent.LengthSegments,
                         settings.lengthSegments,
                         1);
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.WidthCurve);
                     DrawWidthProfileUVMode(settings);
                     break;
 
                 case VFXMeshShapeType.Disc:
                     settings.radius = PositiveFloat(new GUIContent("Radius"), settings.radius);
                     settings.radialSegments = SegmentField(
-                        VFXMeshGeneratorContent.EdgeCount,
+                        VFXMeshLabContent.EdgeCount,
                         settings.radialSegments,
                         3);
                     settings.widthSegments = SegmentField(
-                        VFXMeshGeneratorContent.RadialResolution,
+                        VFXMeshLabContent.RadialResolution,
                         settings.widthSegments,
                         1);
                     DrawRadialDistribution(settings);
                     DrawRadialElevation(settings);
                     settings.arcDegrees = Mathf.Clamp(
                         EditorGUILayout.FloatField(
-                            VFXMeshGeneratorContent.DiscArcDegrees,
+                            VFXMeshLabContent.DiscArcDegrees,
                             settings.arcDegrees),
                         0.1f,
                         360f);
                     settings.angleOffset = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.AngleOffset,
+                        VFXMeshLabContent.AngleOffset,
                         settings.angleOffset);
                     break;
 
@@ -359,7 +359,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     DrawRadialDistribution(settings);
                     DrawRadialElevation(settings);
                     settings.angleOffset = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.AngleOffset,
+                        VFXMeshLabContent.AngleOffset,
                         settings.angleOffset);
                     break;
 
@@ -373,22 +373,22 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     }
 
                     settings.arcWidthCurve = EditorGUILayout.CurveField(
-                        VFXMeshGeneratorContent.ArcWidthCurve,
+                        VFXMeshLabContent.ArcWidthCurve,
                         settings.arcWidthCurve);
                     settings.arcWidthOrigin = (VFXArcWidthOrigin)EditorGUILayout.EnumPopup(
-                        VFXMeshGeneratorContent.ArcWidthOrigin,
+                        VFXMeshLabContent.ArcWidthOrigin,
                         settings.arcWidthOrigin);
                     settings.mirrorArcAcrossShapePlane = EditorGUILayout.Toggle(
-                        VFXMeshGeneratorContent.MirrorArcAcrossShapePlane,
+                        VFXMeshLabContent.MirrorArcAcrossShapePlane,
                         settings.mirrorArcAcrossShapePlane);
                     settings.arcDegrees = Mathf.Clamp(
                         EditorGUILayout.FloatField(
-                            VFXMeshGeneratorContent.ArcDegrees,
+                            VFXMeshLabContent.ArcDegrees,
                             settings.arcDegrees),
                         0.1f,
                         360f);
                     settings.angleOffset = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.AngleOffset,
+                        VFXMeshLabContent.AngleOffset,
                         settings.angleOffset);
                     break;
 
@@ -400,14 +400,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         EditorGUILayout.FloatField(
                             new GUIContent("Top Radius", "Set to zero for a pointed cone."),
                             settings.topRadius));
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.RadiusScaleCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.RadiusScaleCurve);
                     DrawRadialVolumeSettings(settings);
                     break;
 
                 case VFXMeshShapeType.Cylinder:
                     settings.height = PositiveFloat(new GUIContent("Height"), settings.height);
                     settings.radius = PositiveFloat(new GUIContent("Radius"), settings.radius);
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.RadiusScaleCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.RadiusScaleCurve);
                     DrawRadialVolumeSettings(settings);
                     break;
 
@@ -416,14 +416,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     settings.innerRadius = Mathf.Max(
                         0f,
                         EditorGUILayout.FloatField(
-                            VFXMeshGeneratorContent.InnerRadius,
+                            VFXMeshLabContent.InnerRadius,
                             settings.innerRadius));
                     settings.radius = Mathf.Max(
                         settings.innerRadius + 0.0001f,
                         EditorGUILayout.FloatField(
-                            VFXMeshGeneratorContent.OuterRadius,
+                            VFXMeshLabContent.OuterRadius,
                             settings.radius));
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.RadiusScaleCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.RadiusScaleCurve);
                     DrawRadialVolumeSettings(settings);
                     break;
 
@@ -431,46 +431,46 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 case VFXMeshShapeType.Hemisphere:
                     settings.radius = PositiveFloat(new GUIContent("Radius"), settings.radius);
                     settings.longitudeSegments = SegmentField(
-                        VFXMeshGeneratorContent.Longitude,
+                        VFXMeshLabContent.Longitude,
                         settings.longitudeSegments,
                         3);
                     settings.latitudeSegments = SegmentField(
-                        VFXMeshGeneratorContent.Latitude,
+                        VFXMeshLabContent.Latitude,
                         settings.latitudeSegments,
                         2);
                     DrawScaleCurve(
                         settings,
-                        VFXMeshGeneratorContent.RadialProfileScaleCurve);
+                        VFXMeshLabContent.RadialProfileScaleCurve);
                     if (shapeType == VFXMeshShapeType.Hemisphere)
                     {
                         settings.capEnd = EditorGUILayout.Toggle(
-                            VFXMeshGeneratorContent.HemisphereCap,
+                            VFXMeshLabContent.HemisphereCap,
                             settings.capEnd);
                     }
                     break;
 
                 case VFXMeshShapeType.Torus:
-                    settings.radius = PositiveFloat(VFXMeshGeneratorContent.MajorRadius, settings.radius);
+                    settings.radius = PositiveFloat(VFXMeshLabContent.MajorRadius, settings.radius);
                     settings.thickness = PositiveFloat(
-                        VFXMeshGeneratorContent.MinorRadius,
+                        VFXMeshLabContent.MinorRadius,
                         settings.thickness);
                     settings.longitudeSegments = SegmentField(
-                        VFXMeshGeneratorContent.RingSegments,
+                        VFXMeshLabContent.RingSegments,
                         settings.longitudeSegments,
                         3);
                     settings.radialSegments = SegmentField(
-                        VFXMeshGeneratorContent.TubeSegments,
+                        VFXMeshLabContent.TubeSegments,
                         settings.radialSegments,
                         3);
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.TubeScaleCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.TubeScaleCurve);
                     settings.arcDegrees = Mathf.Clamp(
                         EditorGUILayout.FloatField(
-                            VFXMeshGeneratorContent.VolumeArcDegrees,
+                            VFXMeshLabContent.VolumeArcDegrees,
                             settings.arcDegrees),
                         0.1f,
                         360f);
                     settings.angleOffset = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.AngleOffset,
+                        VFXMeshLabContent.AngleOffset,
                         settings.angleOffset);
                     break;
 
@@ -482,34 +482,34 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     settings.size.y = Mathf.Max(0.0001f, settings.size.y);
                     settings.size.z = Mathf.Max(0.0001f, settings.size.z);
                     settings.widthSegments = SegmentField(
-                        VFXMeshGeneratorContent.XSegments,
+                        VFXMeshLabContent.XSegments,
                         settings.widthSegments,
                         1);
                     settings.heightSegments = SegmentField(
-                        VFXMeshGeneratorContent.YSegments,
+                        VFXMeshLabContent.YSegments,
                         settings.heightSegments,
                         1);
                     settings.lengthSegments = SegmentField(
-                        VFXMeshGeneratorContent.ZSegments,
+                        VFXMeshLabContent.ZSegments,
                         settings.lengthSegments,
                         1);
                     DrawScaleCurve(
                         settings,
-                        VFXMeshGeneratorContent.CrossSectionScaleCurve);
+                        VFXMeshLabContent.CrossSectionScaleCurve);
                     break;
 
                 case VFXMeshShapeType.Ribbon:
                     settings.width = PositiveFloat(new GUIContent("Width"), settings.width);
                     settings.length = PositiveFloat(new GUIContent("Length"), settings.length);
                     settings.widthSegments = SegmentField(
-                        VFXMeshGeneratorContent.WidthSegments,
+                        VFXMeshLabContent.WidthSegments,
                         settings.widthSegments,
                         1);
                     settings.lengthSegments = SegmentField(
-                        VFXMeshGeneratorContent.LengthSegments,
+                        VFXMeshLabContent.LengthSegments,
                         settings.lengthSegments,
                         1);
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.WidthCurve);
                     DrawWidthProfileUVMode(settings);
                     break;
 
@@ -518,22 +518,22 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     settings.length = PositiveFloat(new GUIContent("Height"), settings.length);
                     settings.planeCount = Mathf.Clamp(
                         EditorGUILayout.IntField(
-                            VFXMeshGeneratorContent.PlaneCount,
+                            VFXMeshLabContent.PlaneCount,
                             settings.planeCount),
                         2,
                         VFXMeshBuildLimits.MaximumPlaneCount);
                     settings.widthSegments = SegmentField(
-                        VFXMeshGeneratorContent.WidthSegments,
+                        VFXMeshLabContent.WidthSegments,
                         settings.widthSegments,
                         1);
                     settings.lengthSegments = SegmentField(
-                        VFXMeshGeneratorContent.HeightSegments,
+                        VFXMeshLabContent.HeightSegments,
                         settings.lengthSegments,
                         1);
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.WidthCurve);
                     DrawWidthProfileUVMode(settings);
                     settings.angleOffset = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.AngleOffset,
+                        VFXMeshLabContent.AngleOffset,
                         settings.angleOffset);
                     break;
 
@@ -543,38 +543,38 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                         new GUIContent("Strip Width", "Base width of the helix ribbon."),
                         settings.width);
                     settings.turns = Mathf.Clamp(
-                        EditorGUILayout.FloatField(VFXMeshGeneratorContent.Turns, settings.turns),
+                        EditorGUILayout.FloatField(VFXMeshLabContent.Turns, settings.turns),
                         0.05f,
                         VFXMeshBuildLimits.MaximumHelixTurns);
                     settings.pitch = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.Pitch,
+                        VFXMeshLabContent.Pitch,
                         settings.pitch);
                     settings.lengthSegments = SegmentField(
-                        VFXMeshGeneratorContent.HelixLengthSegments,
+                        VFXMeshLabContent.HelixLengthSegments,
                         settings.lengthSegments,
                         3);
                     settings.widthSegments = SegmentField(
-                        VFXMeshGeneratorContent.WidthSegments,
+                        VFXMeshLabContent.WidthSegments,
                         settings.widthSegments,
                         1);
-                    DrawScaleCurve(settings, VFXMeshGeneratorContent.WidthCurve);
+                    DrawScaleCurve(settings, VFXMeshLabContent.WidthCurve);
                     DrawWidthProfileUVMode(settings);
                     settings.angleOffset = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.AngleOffset,
+                        VFXMeshLabContent.AngleOffset,
                         settings.angleOffset);
                     break;
             }
 
             settings.axis = (VFXAxis)EditorGUILayout.EnumPopup(
-                VFXMeshGeneratorContent.MainAxis,
+                VFXMeshLabContent.MainAxis,
                 settings.axis);
             settings.pivot = (VFXPivot)EditorGUILayout.EnumPopup(
-                VFXMeshGeneratorContent.Pivot,
+                VFXMeshLabContent.Pivot,
                 settings.pivot);
             if (settings.pivot == VFXPivot.Custom)
             {
                 settings.customPivotOffset = EditorGUILayout.Vector3Field(
-                    VFXMeshGeneratorContent.CustomPivotPosition,
+                    VFXMeshLabContent.CustomPivotPosition,
                     settings.customPivotOffset);
             }
         }
@@ -753,19 +753,19 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             settings.innerRadius = Mathf.Max(
                 0f,
                 EditorGUILayout.FloatField(
-                    VFXMeshGeneratorContent.InnerRadius,
+                    VFXMeshLabContent.InnerRadius,
                     settings.innerRadius));
             settings.radius = Mathf.Max(
                 settings.innerRadius + 0.0001f,
                 EditorGUILayout.FloatField(
-                    VFXMeshGeneratorContent.OuterRadius,
+                    VFXMeshLabContent.OuterRadius,
                     settings.radius));
             settings.radialSegments = SegmentField(
-                VFXMeshGeneratorContent.EdgeCount,
+                VFXMeshLabContent.EdgeCount,
                 settings.radialSegments,
                 3);
             settings.widthSegments = SegmentField(
-                VFXMeshGeneratorContent.RadialResolution,
+                VFXMeshLabContent.RadialResolution,
                 settings.widthSegments,
                 1);
         }
@@ -774,7 +774,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         {
             settings.radialElevationCurve ??= AnimationCurve.Linear(0f, 0f, 1f, 0f);
             settings.radialElevationCurve = EditorGUILayout.CurveField(
-                VFXMeshGeneratorContent.AxialElevationCurve,
+                VFXMeshLabContent.AxialElevationCurve,
                 settings.radialElevationCurve);
         }
 
@@ -783,7 +783,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             settings.radialDistributionCurve ??=
                 AnimationCurve.Linear(0f, 0f, 1f, 1f);
             settings.radialDistributionCurve = EditorGUILayout.CurveField(
-                VFXMeshGeneratorContent.RadialVertexDistribution,
+                VFXMeshLabContent.RadialVertexDistribution,
                 settings.radialDistributionCurve);
         }
 
@@ -801,34 +801,34 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         {
             settings.ribbonUVWidthMode =
                 (VFXRibbonUVWidthMode)EditorGUILayout.EnumPopup(
-                    VFXMeshGeneratorContent.RibbonUVWidthMode,
+                    VFXMeshLabContent.RibbonUVWidthMode,
                     settings.ribbonUVWidthMode);
         }
 
         private static void DrawRadialVolumeSettings(VFXShapeSettings settings)
         {
             settings.radialSegments = SegmentField(
-                VFXMeshGeneratorContent.RadialSegments,
+                VFXMeshLabContent.RadialSegments,
                 settings.radialSegments,
                 3);
             settings.heightSegments = SegmentField(
-                VFXMeshGeneratorContent.HeightSegments,
+                VFXMeshLabContent.HeightSegments,
                 settings.heightSegments,
                 1);
             settings.arcDegrees = Mathf.Clamp(
                 EditorGUILayout.FloatField(
-                    VFXMeshGeneratorContent.VolumeArcDegrees,
+                    VFXMeshLabContent.VolumeArcDegrees,
                     settings.arcDegrees),
                 0.1f,
                 360f);
             settings.angleOffset = EditorGUILayout.FloatField(
-                VFXMeshGeneratorContent.AngleOffset,
+                VFXMeshLabContent.AngleOffset,
                 settings.angleOffset);
             settings.capStart = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.CapStart,
+                VFXMeshLabContent.CapStart,
                 settings.capStart);
             settings.capEnd = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.CapEnd,
+                VFXMeshLabContent.CapEnd,
                 settings.capEnd);
         }
 
@@ -845,14 +845,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 EditorGUILayout.BeginHorizontal();
                 modifier.enabled = GUILayout.Toggle(
                     modifier.enabled,
-                    VFXMeshGeneratorContent.ModifierEnabled,
+                    VFXMeshLabContent.ModifierEnabled,
                     GUILayout.Width(18f));
                 modifier.type = (VFXModifierType)EditorGUILayout.EnumPopup(modifier.type);
-                DrawTooltipOverLastControl(VFXMeshGeneratorContent.ModifierType);
+                DrawTooltipOverLastControl(VFXMeshLabContent.ModifierType);
 
                 using (new EditorGUI.DisabledScope(i == 0))
                 {
-                    if (GUILayout.Button(VFXMeshGeneratorContent.MoveEarlier, GUILayout.Width(25f)))
+                    if (GUILayout.Button(VFXMeshLabContent.MoveEarlier, GUILayout.Width(25f)))
                     {
                         moveFrom = i;
                         moveTo = i - 1;
@@ -861,14 +861,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
                 using (new EditorGUI.DisabledScope(i == recipe.modifiers.Count - 1))
                 {
-                    if (GUILayout.Button(VFXMeshGeneratorContent.MoveLater, GUILayout.Width(25f)))
+                    if (GUILayout.Button(VFXMeshLabContent.MoveLater, GUILayout.Width(25f)))
                     {
                         moveFrom = i;
                         moveTo = i + 1;
                     }
                 }
 
-                if (GUILayout.Button(VFXMeshGeneratorContent.RemoveModifier, GUILayout.Width(25f)))
+                if (GUILayout.Button(VFXMeshLabContent.RemoveModifier, GUILayout.Width(25f)))
                 {
                     removeIndex = i;
                 }
@@ -900,8 +900,8 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
             EditorGUILayout.BeginHorizontal();
             modifierToAdd = (VFXModifierType)EditorGUILayout.EnumPopup(modifierToAdd);
-            DrawTooltipOverLastControl(VFXMeshGeneratorContent.ModifierToAdd);
-            if (GUILayout.Button(VFXMeshGeneratorContent.AddModifier, GUILayout.Width(100f)))
+            DrawTooltipOverLastControl(VFXMeshLabContent.ModifierToAdd);
+            if (GUILayout.Button(VFXMeshLabContent.AddModifier, GUILayout.Width(100f)))
             {
                 recipe.modifiers.Add(new VFXMeshModifierSettings { type = modifierToAdd });
                 GUI.changed = true;
@@ -912,20 +912,20 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private static void DrawModifierSettings(VFXMeshModifierSettings modifier)
         {
             modifier.axis = (VFXAxis)EditorGUILayout.EnumPopup(
-                VFXMeshGeneratorContent.ModifierAxis,
+                VFXMeshLabContent.ModifierAxis,
                 modifier.axis);
 
             switch (modifier.type)
             {
                 case VFXModifierType.Transform:
                     modifier.offset = EditorGUILayout.Vector3Field(
-                        VFXMeshGeneratorContent.TransformOffset,
+                        VFXMeshLabContent.TransformOffset,
                         modifier.offset);
                     modifier.scale = EditorGUILayout.Vector3Field(
-                        VFXMeshGeneratorContent.TransformScale,
+                        VFXMeshLabContent.TransformScale,
                         modifier.scale);
                     modifier.angle = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.TransformRotation,
+                        VFXMeshLabContent.TransformRotation,
                         modifier.angle);
                     break;
 
@@ -933,63 +933,63 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 case VFXModifierType.Bend:
                     modifier.angle = EditorGUILayout.FloatField(
                         modifier.type == VFXModifierType.Twist
-                            ? VFXMeshGeneratorContent.TwistAngle
-                            : VFXMeshGeneratorContent.BendAngle,
+                            ? VFXMeshLabContent.TwistAngle
+                            : VFXMeshLabContent.BendAngle,
                         modifier.angle);
                     modifier.space = (VFXModifierSpace)EditorGUILayout.EnumPopup(
-                        VFXMeshGeneratorContent.Space(modifier.type),
+                        VFXMeshLabContent.Space(modifier.type),
                         modifier.space);
                     modifier.falloff = EditorGUILayout.CurveField(
-                        VFXMeshGeneratorContent.Falloff,
+                        VFXMeshLabContent.Falloff,
                         modifier.falloff);
                     break;
 
                 case VFXModifierType.Noise:
                     modifier.strength = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.Strength(modifier.type),
+                        VFXMeshLabContent.Strength(modifier.type),
                         modifier.strength);
                     modifier.frequency = PositiveFloat(
-                        VFXMeshGeneratorContent.NoiseFrequency,
+                        VFXMeshLabContent.NoiseFrequency,
                         modifier.frequency);
                     modifier.offset = EditorGUILayout.Vector3Field(
-                        VFXMeshGeneratorContent.NoiseOffset,
+                        VFXMeshLabContent.NoiseOffset,
                         modifier.offset);
-                    modifier.seed = EditorGUILayout.IntField(VFXMeshGeneratorContent.Seed, modifier.seed);
+                    modifier.seed = EditorGUILayout.IntField(VFXMeshLabContent.Seed, modifier.seed);
                     modifier.octaves = Mathf.Clamp(
-                        EditorGUILayout.IntField(VFXMeshGeneratorContent.Octaves, modifier.octaves),
+                        EditorGUILayout.IntField(VFXMeshLabContent.Octaves, modifier.octaves),
                         1,
                         VFXMeshBuildLimits.MaximumNoiseOctaves);
                     modifier.lacunarity = PositiveFloat(
-                        VFXMeshGeneratorContent.Lacunarity,
+                        VFXMeshLabContent.Lacunarity,
                         modifier.lacunarity);
                     modifier.persistence = Mathf.Clamp01(
                         EditorGUILayout.FloatField(
-                            VFXMeshGeneratorContent.Persistence,
+                            VFXMeshLabContent.Persistence,
                             modifier.persistence));
                     modifier.space = (VFXModifierSpace)EditorGUILayout.EnumPopup(
-                        VFXMeshGeneratorContent.NoiseDirection,
+                        VFXMeshLabContent.NoiseDirection,
                         modifier.space);
                     modifier.falloff = EditorGUILayout.CurveField(
-                        VFXMeshGeneratorContent.Falloff,
+                        VFXMeshLabContent.Falloff,
                         modifier.falloff);
                     break;
 
                 case VFXModifierType.Wave:
                 case VFXModifierType.RadialRipple:
                     modifier.strength = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.Strength(modifier.type),
+                        VFXMeshLabContent.Strength(modifier.type),
                         modifier.strength);
                     modifier.frequency = PositiveFloat(
-                        VFXMeshGeneratorContent.WaveFrequency,
+                        VFXMeshLabContent.WaveFrequency,
                         modifier.frequency);
                     modifier.angle = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.Phase,
+                        VFXMeshLabContent.Phase,
                         modifier.angle);
                     modifier.space = (VFXModifierSpace)EditorGUILayout.EnumPopup(
-                        VFXMeshGeneratorContent.Space(modifier.type),
+                        VFXMeshLabContent.Space(modifier.type),
                         modifier.space);
                     modifier.falloff = EditorGUILayout.CurveField(
-                        VFXMeshGeneratorContent.Falloff,
+                        VFXMeshLabContent.Falloff,
                         modifier.falloff);
                     break;
 
@@ -999,13 +999,13 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 case VFXModifierType.Spherize:
                 case VFXModifierType.Flatten:
                     modifier.strength = EditorGUILayout.FloatField(
-                        VFXMeshGeneratorContent.Strength(modifier.type),
+                        VFXMeshLabContent.Strength(modifier.type),
                         modifier.strength);
                     modifier.space = (VFXModifierSpace)EditorGUILayout.EnumPopup(
-                        VFXMeshGeneratorContent.Space(modifier.type),
+                        VFXMeshLabContent.Space(modifier.type),
                         modifier.space);
                     modifier.falloff = EditorGUILayout.CurveField(
-                        VFXMeshGeneratorContent.Falloff,
+                        VFXMeshLabContent.Falloff,
                         modifier.falloff);
                     break;
             }
@@ -1014,48 +1014,48 @@ namespace PudinKiller.VFXMeshGenerator.Editor
         private static void DrawUVSettings(VFXUVSettings settings)
         {
             settings.projection = (VFXUVProjection)EditorGUILayout.EnumPopup(
-                VFXMeshGeneratorContent.UVProjection,
+                VFXMeshLabContent.UVProjection,
                 settings.projection);
-            settings.scale = EditorGUILayout.Vector2Field(VFXMeshGeneratorContent.UVScale, settings.scale);
-            settings.offset = EditorGUILayout.Vector2Field(VFXMeshGeneratorContent.UVOffset, settings.offset);
+            settings.scale = EditorGUILayout.Vector2Field(VFXMeshLabContent.UVScale, settings.scale);
+            settings.offset = EditorGUILayout.Vector2Field(VFXMeshLabContent.UVOffset, settings.offset);
             settings.rotation = EditorGUILayout.FloatField(
-                VFXMeshGeneratorContent.UVRotation,
+                VFXMeshLabContent.UVRotation,
                 settings.rotation);
-            settings.flipU = EditorGUILayout.Toggle(VFXMeshGeneratorContent.FlipU, settings.flipU);
-            settings.flipV = EditorGUILayout.Toggle(VFXMeshGeneratorContent.FlipV, settings.flipV);
-            settings.swapUV = EditorGUILayout.Toggle(VFXMeshGeneratorContent.SwapUV, settings.swapUV);
+            settings.flipU = EditorGUILayout.Toggle(VFXMeshLabContent.FlipU, settings.flipU);
+            settings.flipV = EditorGUILayout.Toggle(VFXMeshLabContent.FlipV, settings.flipV);
+            settings.swapUV = EditorGUILayout.Toggle(VFXMeshLabContent.SwapUV, settings.swapUV);
         }
 
         private static void DrawVertexDataSettings(VFXVertexDataSettings settings)
         {
             settings.generateColors = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.VertexColors,
+                VFXMeshLabContent.VertexColors,
                 settings.generateColors);
             if (settings.generateColors)
             {
                 settings.colorMode = (VFXVertexColorMode)EditorGUILayout.EnumPopup(
-                    VFXMeshGeneratorContent.ColorMode,
+                    VFXMeshLabContent.ColorMode,
                     settings.colorMode);
                 if (settings.colorMode == VFXVertexColorMode.Solid)
                 {
                     settings.solidColor = EditorGUILayout.ColorField(
-                        VFXMeshGeneratorContent.SolidColor,
+                        VFXMeshLabContent.SolidColor,
                         settings.solidColor);
                 }
                 else
                 {
                     settings.colorGradient = EditorGUILayout.GradientField(
-                        VFXMeshGeneratorContent.ColorGradient,
+                        VFXMeshLabContent.ColorGradient,
                         settings.colorGradient);
                     settings.gradientAxis = (VFXAxis)EditorGUILayout.EnumPopup(
-                        VFXMeshGeneratorContent.GradientAxis,
+                        VFXMeshLabContent.GradientAxis,
                         settings.gradientAxis);
                 }
             }
 
-            DrawPackedUV(VFXMeshGeneratorContent.UV1, ref settings.generateUV1, settings.uv1);
-            DrawPackedUV(VFXMeshGeneratorContent.UV2, ref settings.generateUV2, settings.uv2);
-            DrawPackedUV(VFXMeshGeneratorContent.UV3, ref settings.generateUV3, settings.uv3);
+            DrawPackedUV(VFXMeshLabContent.UV1, ref settings.generateUV1, settings.uv1);
+            DrawPackedUV(VFXMeshLabContent.UV2, ref settings.generateUV2, settings.uv2);
+            DrawPackedUV(VFXMeshLabContent.UV3, ref settings.generateUV3, settings.uv3);
         }
 
         private static void DrawPackedUV(GUIContent label, ref bool enabled, VFXChannelPackSettings pack)
@@ -1067,55 +1067,55 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             }
 
             EditorGUI.indentLevel++;
-            pack.x = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshGeneratorContent.ChannelX, pack.x);
-            pack.y = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshGeneratorContent.ChannelY, pack.y);
-            pack.z = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshGeneratorContent.ChannelZ, pack.z);
-            pack.w = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshGeneratorContent.ChannelW, pack.w);
+            pack.x = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshLabContent.ChannelX, pack.x);
+            pack.y = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshLabContent.ChannelY, pack.y);
+            pack.z = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshLabContent.ChannelZ, pack.z);
+            pack.w = (VFXDataSource)EditorGUILayout.EnumPopup(VFXMeshLabContent.ChannelW, pack.w);
             EditorGUI.indentLevel--;
         }
 
         private static void DrawOutputSettings(VFXMeshOutputSettings settings)
         {
             settings.flipWinding = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.FlipWinding,
+                VFXMeshLabContent.FlipWinding,
                 settings.flipWinding);
             settings.doubleSided = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.DoubleSided,
+                VFXMeshLabContent.DoubleSided,
                 settings.doubleSided);
             settings.flatShading = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.FlatShading,
+                VFXMeshLabContent.FlatShading,
                 settings.flatShading);
             settings.generateTangents = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.GenerateTangents,
+                VFXMeshLabContent.GenerateTangents,
                 settings.generateTangents);
             settings.readWriteEnabled = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.ReadWrite,
+                VFXMeshLabContent.ReadWrite,
                 settings.readWriteEnabled);
             settings.optimizeMesh = EditorGUILayout.Toggle(
-                VFXMeshGeneratorContent.OptimizeMesh,
+                VFXMeshLabContent.OptimizeMesh,
                 settings.optimizeMesh);
             settings.compression = (VFXMeshCompression)EditorGUILayout.EnumPopup(
-                VFXMeshGeneratorContent.Compression,
+                VFXMeshLabContent.Compression,
                 settings.compression);
             settings.indexFormat = (VFXIndexFormatMode)EditorGUILayout.EnumPopup(
-                VFXMeshGeneratorContent.IndexFormat,
+                VFXMeshLabContent.IndexFormat,
                 settings.indexFormat);
             settings.boundsPadding = Mathf.Max(
                 0f,
                 EditorGUILayout.FloatField(
-                    VFXMeshGeneratorContent.BoundsPadding,
+                    VFXMeshLabContent.BoundsPadding,
                     settings.boundsPadding));
         }
 
         private void DrawPresetControls()
         {
-            if (GUILayout.Button(VFXMeshGeneratorContent.ApplyBuiltInTemplate))
+            if (GUILayout.Button(VFXMeshLabContent.ApplyBuiltInTemplate))
             {
                 ShowBuiltInTemplateMenu(GUILayoutUtility.GetLastRect());
             }
 
             selectedPreset = (VFXMeshRecipePreset)EditorGUILayout.ObjectField(
-                VFXMeshGeneratorContent.Preset,
+                VFXMeshLabContent.Preset,
                 selectedPreset,
                 typeof(VFXMeshRecipePreset),
                 false);
@@ -1125,14 +1125,14 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             if (selectedPreset != null && !canUpdatePreset)
             {
                 EditorGUILayout.HelpBox(
-                    VFXMeshGeneratorContent.ReadOnlyPresetMessage,
+                    VFXMeshLabContent.ReadOnlyPresetMessage,
                     MessageType.Info);
             }
 
             EditorGUILayout.BeginHorizontal();
             using (new EditorGUI.DisabledScope(selectedPreset == null))
             {
-                if (GUILayout.Button(VFXMeshGeneratorContent.LoadPreset))
+                if (GUILayout.Button(VFXMeshLabContent.LoadPreset))
                 {
                     AdoptRecipe(selectedPreset.recipe);
                     SavePersistentState();
@@ -1143,7 +1143,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
 
             using (new EditorGUI.DisabledScope(!canUpdatePreset))
             {
-                if (GUILayout.Button(VFXMeshGeneratorContent.UpdatePreset))
+                if (GUILayout.Button(VFXMeshLabContent.UpdatePreset))
                 {
                     Undo.RecordObject(selectedPreset, "Update VFX Mesh Preset");
                     selectedPreset.recipe = recipe.DeepCopy();
@@ -1152,7 +1152,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 }
             }
 
-            if (GUILayout.Button(VFXMeshGeneratorContent.SavePreset))
+            if (GUILayout.Button(VFXMeshLabContent.SavePreset))
             {
                 SaveNewPreset();
             }
@@ -1205,7 +1205,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                     : null;
             EditorGUI.BeginChangeCheck();
             var selectedFolderAsset = (DefaultAsset)EditorGUILayout.ObjectField(
-                VFXMeshGeneratorContent.DefaultFolder,
+                VFXMeshLabContent.DefaultFolder,
                 currentFolderAsset,
                 typeof(DefaultAsset),
                 false);
@@ -1221,7 +1221,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
                 }
             }
 
-            if (GUILayout.Button(VFXMeshGeneratorContent.BrowseFolder, GUILayout.Width(28f)))
+            if (GUILayout.Button(VFXMeshLabContent.BrowseFolder, GUILayout.Width(28f)))
             {
                 SelectOutputFolder();
             }
@@ -1229,20 +1229,20 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             EditorGUILayout.LabelField(outputFolder, EditorStyles.miniLabel);
 
             updateTarget = (Mesh)EditorGUILayout.ObjectField(
-                VFXMeshGeneratorContent.UpdateMesh,
+                VFXMeshLabContent.UpdateMesh,
                 updateTarget,
                 typeof(Mesh),
                 false);
 
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button(VFXMeshGeneratorContent.GenerateNew, GUILayout.Height(28f)))
+            if (GUILayout.Button(VFXMeshLabContent.GenerateNew, GUILayout.Height(28f)))
             {
                 GenerateNewMesh();
             }
 
             using (new EditorGUI.DisabledScope(updateTarget == null))
             {
-                if (GUILayout.Button(VFXMeshGeneratorContent.UpdateExisting, GUILayout.Height(28f)))
+                if (GUILayout.Button(VFXMeshLabContent.UpdateExisting, GUILayout.Height(28f)))
                 {
                     UpdateExistingMesh();
                 }
@@ -1353,7 +1353,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var result = VFXMeshAssetWriter.GenerateNew(buildResult, path);
             if (!result.succeeded)
             {
-                EditorUtility.DisplayDialog("VFX Mesh Generator", result.error, "OK");
+                EditorUtility.DisplayDialog("VFX Mesh Lab", result.error, "OK");
                 return;
             }
 
@@ -1377,7 +1377,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             var result = VFXMeshAssetWriter.UpdateExisting(buildResult, updateTarget);
             if (!result.succeeded)
             {
-                EditorUtility.DisplayDialog("VFX Mesh Generator", result.error, "OK");
+                EditorUtility.DisplayDialog("VFX Mesh Lab", result.error, "OK");
                 return;
             }
 
@@ -1534,7 +1534,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             catch (Exception exception)
             {
                 Debug.LogWarning(
-                    "VFX Mesh Generator could not restore its editor state: " +
+                    "VFX Mesh Lab could not restore its editor state: " +
                     exception.Message);
                 EditorPrefs.DeleteKey(persistentStateKey);
                 shapeSettingsByType = new List<ShapeSettingsEntry>();
@@ -1605,7 +1605,7 @@ namespace PudinKiller.VFXMeshGenerator.Editor
             catch (Exception exception)
             {
                 Debug.LogWarning(
-                    "VFX Mesh Generator could not save its editor state: " +
+                    "VFX Mesh Lab could not save its editor state: " +
                     exception.Message);
             }
         }

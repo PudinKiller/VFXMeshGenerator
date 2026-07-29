@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     /// <summary>
     /// Builds the base topology and shape-default UV0 data for every supported mesh type.

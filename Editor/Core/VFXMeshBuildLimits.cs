@@ -1,6 +1,6 @@
 using System;
 
-namespace PudinKiller.VFXMeshGenerator.Editor
+namespace PudinKiller.VFXMeshLab.Editor
 {
     /// <summary>
     /// Central safety limits for synchronous editor generation.

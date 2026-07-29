@@ -1,4 +1,4 @@
-# VFX Mesh Generator
+# VFX Mesh Lab
 
 ![Unity](https://img.shields.io/badge/Unity-6%2B-black)
 ![Render Pipeline](https://img.shields.io/badge/Render%20Pipeline-URP-5b7fff)
@@ -20,7 +20,7 @@ Made by [Ken Deng / PudinKiller](https://github.com/PudinKiller).
 ### Built-In Templates
 
 <p align="center">
-  <img src=".github/readme/BuiltInTemplates.gif" width="400" alt="VFX Mesh Generator cycling through its seven included mesh templates in Unity's shaded-wireframe preview">
+  <img src=".github/readme/BuiltInTemplates.gif" width="400" alt="VFX Mesh Lab cycling through its seven included mesh templates in Unity's shaded-wireframe preview">
   <br>
   <sub>Apply an included starting recipe, customize it, then save an editable project preset.</sub>
 </p>
@@ -30,14 +30,14 @@ Made by [Ken Deng / PudinKiller](https://github.com/PudinKiller).
     <td width="50%" align="center">
       <b>Shape and Modifier Workflow</b>
       <br><br>
-      <img src=".github/readme/ShapeModifiers.gif" width="100%" alt="Increasing a Disc's resolution and tuning a Radial Ripple modifier in VFX Mesh Generator's live shaded-wireframe preview">
+      <img src=".github/readme/ShapeModifiers.gif" width="100%" alt="Increasing a Disc's resolution and tuning a Radial Ripple modifier in VFX Mesh Lab's live shaded-wireframe preview">
       <br>
       <sub>Build suitable topology, add an ordered modifier, and tune it with immediate preview feedback.</sub>
     </td>
     <td width="50%" align="center">
       <b>Mirrored Arc Workflow</b>
       <br><br>
-      <img src=".github/readme/MirroredArc.gif" width="100%" alt="Creating a tapered, elevated, mirrored Arc mesh with curve-driven controls in VFX Mesh Generator">
+      <img src=".github/readme/MirroredArc.gif" width="100%" alt="Creating a tapered, elevated, mirrored Arc mesh with curve-driven controls in VFX Mesh Lab">
       <br>
       <sub>Shape and mirror a volumetric slash shell while keeping its outer rims joined.</sub>
     </td>
@@ -50,7 +50,7 @@ Made by [Ken Deng / PudinKiller](https://github.com/PudinKiller).
 
 Real-time VFX often depends on small, specialized meshes: a slash, impact ring, tapered ribbon, hollow beam, crossed cards, or geometry carrying shader data. Moving to a DCC for every adjustment can interrupt iteration and still leave UV direction, pivots, vertex data, winding, or output settings to fix afterward.
 
-VFX Mesh Generator is deliberately focused rather than a replacement for a full modeling package: it keeps common procedural VFX mesh creation, inspection, and regeneration inside the Unity editor.
+VFX Mesh Lab is deliberately focused rather than a replacement for a full modeling package: it keeps common procedural VFX mesh creation, inspection, and regeneration inside the Unity editor.
 
 ---
 
@@ -78,9 +78,9 @@ VFX Mesh Generator is deliberately focused rather than a replacement for a full 
 - Git, only when installing directly from a Git URL
 
 > [!IMPORTANT]
-> Install URP before VFX Mesh Generator. The preview shader uses URP shader libraries, but the package intentionally does not pin a specific URP package version.
+> Install URP before VFX Mesh Lab. The preview shader uses URP shader libraries, but the package intentionally does not pin a specific URP package version.
 
-The tool is editor-only. Generated Mesh assets are normal Unity assets and do not require VFX Mesh Generator at runtime.
+The tool is editor-only. Generated Mesh assets are normal Unity assets and do not require VFX Mesh Lab at runtime.
 
 ---
 
@@ -98,7 +98,7 @@ In Unity:
 4. Paste:
 
 ```text
-https://github.com/PudinKiller/VFXMeshGenerator.git#v1.0.0
+https://github.com/PudinKiller/VFXMeshLab.git#v1.0.0
 ```
 
 Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v1.0.0`.
@@ -110,7 +110,7 @@ Using a version tag keeps the installed package stable. To follow the latest cod
 
 Use this method if Unity says Git is not installed.
 
-1. Open the [GitHub Releases page](https://github.com/PudinKiller/VFXMeshGenerator/releases).
+1. Open the [GitHub Releases page](https://github.com/PudinKiller/VFXMeshLab/releases).
 2. Download `Source code (zip)` for the version you want.
 3. Unzip it somewhere on your computer.
 4. In Unity, open `Window > Package Manager`.
@@ -137,7 +137,7 @@ If a `.tgz` package is attached to a GitHub Release:
 Open the tool from:
 
 ```text
-Tools > VFX Mesh Generator
+Tools > VFX Mesh Lab
 ```
 
 1. Apply a built-in template or choose a procedural Shape.
@@ -712,7 +712,7 @@ When reporting a problem, please include:
 - Reproduction steps
 - Screenshot, recording, or preset when possible
 
-Use the [GitHub issue tracker](https://github.com/PudinKiller/VFXMeshGenerator/issues) for public reports and requests.
+Use the [GitHub issue tracker](https://github.com/PudinKiller/VFXMeshLab/issues) for public reports and requests.
 
 ---
 
@@ -724,7 +724,7 @@ Use the [GitHub issue tracker](https://github.com/PudinKiller/VFXMeshGenerator/i
 This repository is structured as a Unity Package Manager package.
 
 ```text
-VFXMeshGenerator/
+VFXMeshLab/
   package.json
   README.md
   CHANGELOG.md
