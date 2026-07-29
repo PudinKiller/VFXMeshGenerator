@@ -17,22 +17,22 @@ Made by [Ken Deng / PudinKiller](https://github.com/PudinKiller).
 
 ## Feature Demos
 
-### Shape and Modifier Workflow
+### Built-In Templates
 
 <p align="center">
-  <img src=".github/readme/ShapeModifiers.gif" width="760" alt="Increasing a Disc's resolution and tuning a Radial Ripple modifier in VFX Mesh Generator's live shaded-wireframe preview">
+  <img src=".github/readme/BuiltInTemplates.gif" width="400" alt="VFX Mesh Generator cycling through its seven included mesh templates in Unity's shaded-wireframe preview">
   <br>
-  <sub>Build suitable topology, add an ordered modifier, and tune it with immediate preview feedback.</sub>
+  <sub>Apply an included starting recipe, customize it, then save an editable project preset.</sub>
 </p>
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <b>Built-In Templates</b>
+      <b>Shape and Modifier Workflow</b>
       <br><br>
-      <img src=".github/readme/BuiltInTemplates.gif" width="100%" alt="VFX Mesh Generator cycling through its seven included mesh templates in Unity's shaded-wireframe preview">
+      <img src=".github/readme/ShapeModifiers.gif" width="100%" alt="Increasing a Disc's resolution and tuning a Radial Ripple modifier in VFX Mesh Generator's live shaded-wireframe preview">
       <br>
-      <sub>Apply an included starting recipe, customize it, then save an editable project preset.</sub>
+      <sub>Build suitable topology, add an ordered modifier, and tune it with immediate preview feedback.</sub>
     </td>
     <td width="50%" align="center">
       <b>Mirrored Arc Workflow</b>
