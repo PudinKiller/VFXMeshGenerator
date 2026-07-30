@@ -98,7 +98,7 @@ In Unity:
 4. Paste:
 
 ```text
-https://github.com/PudinKiller/VFXMeshLab.git#v1.0.0
+https://github.com/PudinKiller/VFXMeshLab.git
 ```
 
 Using a version tag keeps the installed package stable. To follow the latest code on `main`, omit `#v1.0.0`.
